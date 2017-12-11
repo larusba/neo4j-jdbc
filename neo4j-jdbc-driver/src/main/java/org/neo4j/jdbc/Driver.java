@@ -24,13 +24,13 @@ package org.neo4j.jdbc;
 
 import org.neo4j.jdbc.bolt.BoltNeo4jDriver;
 import org.neo4j.jdbc.http.HttpNeo4jDriver;
+import org.neo4j.jdbc.impermanent.ImpermanentNeo4jDriver;
 
 import java.lang.reflect.Constructor;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 
 public class Driver extends Neo4jDriver {
@@ -44,6 +44,7 @@ public class Driver extends Neo4jDriver {
 	static {
 		DRIVERS.put(BoltNeo4jDriver.JDBC_BOLT_PREFIX, BoltNeo4jDriver.class);
 		DRIVERS.put(HttpNeo4jDriver.JDBC_HTTP_PREFIX, HttpNeo4jDriver.class);
+		DRIVERS.put(ImpermanentNeo4jDriver.JDBC_IMPERMANENT_PREFIX, ImpermanentNeo4jDriver.class);
 	}
 
 	/**
@@ -56,7 +57,7 @@ public class Driver extends Neo4jDriver {
 
 	@Override public Connection connect(String url, Properties info) throws SQLException {
 		Connection connection = null;
-		if(!Objects.isNull(getDriver(url))) {
+		if(getDriver(url) != null) {
 			connection = getDriver(url).connect(url, info);
 		}
 		return connection;
@@ -78,7 +79,7 @@ public class Driver extends Neo4jDriver {
 		// We search the driver prefix from the url
 		if (url.startsWith(JDBC_PREFIX)) {
 			String[] pieces = url.split(":");
-			if (pieces.length > 3) {
+			if (pieces.length >= 3) {
 				String prefix = pieces[2];
 
 				// We look into driver map is it known

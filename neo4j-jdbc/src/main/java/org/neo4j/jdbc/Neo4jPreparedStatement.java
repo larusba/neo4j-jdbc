@@ -77,6 +77,11 @@ public abstract class Neo4jPreparedStatement extends Neo4jStatement implements j
 		this.batchParameters = new ArrayList<>();
 	}
 
+	public Neo4jPreparedStatement(Neo4jConnection connection, String rawStatement, int... rsParams) {
+		this(connection, rawStatement);
+		this.rsParams = rsParams;
+	}
+
 	/*----------------------------------------*/
 	/*       Some useful, check method        */
 	/*----------------------------------------*/

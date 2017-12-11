@@ -38,7 +38,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.neo4j.graphdb.Result;
 import org.neo4j.jdbc.Neo4jResultSet;
-import org.neo4j.jdbc.bolt.data.StatementData;
+import org.neo4j.jdbc.data.StatementData;
 
 /**
  * @author AgileLARUS

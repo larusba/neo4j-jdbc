@@ -20,7 +20,7 @@
 package org.neo4j.jdbc.bolt;
 
 import org.neo4j.jdbc.Neo4jConnection;
-import org.neo4j.jdbc.bolt.data.StatementData;
+import org.neo4j.jdbc.data.StatementData;
 import org.neo4j.jdbc.bolt.utils.Mocker;
 import org.junit.Before;
 import org.junit.Ignore;

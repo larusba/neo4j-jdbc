@@ -22,6 +22,7 @@ package org.neo4j.jdbc;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.neo4j.jdbc.utils.ExceptionBuilder;
@@ -36,6 +37,7 @@ public abstract class Neo4jStatement implements java.sql.Statement {
 	protected ResultSet       currentResultSet;
 	protected int             currentUpdateCount;
 	protected List<String>    batchStatements;
+	protected int[]           rsParams;
 	private   int             maxRows;
 	private   int             queryTimeout;
 
@@ -56,6 +58,18 @@ public abstract class Neo4jStatement implements java.sql.Statement {
 	}
 
 	/**
+	 * Default Constructor
+	 *
+	 * @param connection The connection used for sharing the transaction between statements
+	 * @param rsParams   The params (type, concurrency and holdability) used to create a new ResultSet
+	 */
+	public Neo4jStatement(Neo4jConnection connection, int... rsParams) {
+		this(connection);
+		this.rsParams = rsParams;
+		this.batchStatements = new ArrayList<>();
+	}
+
+	/**
 	 * Check if this statement is closed or not.
 	 * If it is, we throw an exception.
 	 * @throws SQLException sqlexception
@@ -64,6 +78,15 @@ public abstract class Neo4jStatement implements java.sql.Statement {
 		if (this.isClosed()) {
 			throw new SQLException("Statement already closed");
 		}
+	}
+
+	/**
+	 * Check if the statement contains the <code>return</code> keyword
+	 * @param statement The incoming statement
+	 * @return True if the statement contains a <code>return</code> clause.
+	 */
+	protected boolean hasReturnClause(String statement) {
+		return statement != null && statement.toLowerCase().contains("return");
 	}
 
 	/*------------------------------------*/
@@ -200,6 +223,39 @@ public abstract class Neo4jStatement implements java.sql.Statement {
 	@Override public void clearBatch() throws SQLException {
 		this.checkClosed();
 		this.batchStatements.clear();
+	}
+
+	@Override public int getResultSetConcurrency() throws SQLException {
+		this.checkClosed();
+		if (currentResultSet != null) {
+			return currentResultSet.getConcurrency();
+		}
+		if (this.rsParams.length > 1) {
+			return this.rsParams[1];
+		}
+		return Neo4jResultSet.DEFAULT_CONCURRENCY;
+	}
+
+	@Override public int getResultSetType() throws SQLException {
+		this.checkClosed();
+		if (currentResultSet != null) {
+			return currentResultSet.getType();
+		}
+		if (this.rsParams.length > 0) {
+			return this.rsParams[0];
+		}
+		return Neo4jResultSet.DEFAULT_TYPE;
+	}
+
+	@Override public int getResultSetHoldability() throws SQLException {
+		this.checkClosed();
+		if (currentResultSet != null) {
+			return currentResultSet.getHoldability();
+		}
+		if (this.rsParams.length > 2) {
+			return this.rsParams[2];
+		}
+		return Neo4jResultSet.DEFAULT_HOLDABILITY;
 	}
 
 	/*---------------------------------*/

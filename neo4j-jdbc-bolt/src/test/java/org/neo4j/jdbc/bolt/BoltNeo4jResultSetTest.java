@@ -20,7 +20,7 @@
 package org.neo4j.jdbc.bolt;
 
 import org.neo4j.jdbc.Neo4jResultSet;
-import org.neo4j.jdbc.bolt.data.ResultSetData;
+import org.neo4j.jdbc.bolt.data.BoltResultSetData;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -41,7 +41,7 @@ public class BoltNeo4jResultSetTest {
 	@Rule public ExpectedException expectedEx = ExpectedException.none();
 
 	@BeforeClass public static void initialize() {
-		ResultSetData.initialize();
+		BoltResultSetData.initialize();
 	}
 
 	/*------------------------------*/
@@ -49,8 +49,8 @@ public class BoltNeo4jResultSetTest {
 	/*------------------------------*/
 
 	@Test public void isClosedReturnFalseWhenConnectionOpen() throws SQLException {
-		StatementResult StatementResult = ResultSetData
-				.buildResultCursor(ResultSetData.KEYS_RECORD_LIST_MORE_ELEMENTS, ResultSetData.RECORD_LIST_MORE_ELEMENTS);
+		StatementResult StatementResult = BoltResultSetData
+				.buildResultCursor(BoltResultSetData.getKeysRecordListMoreElements(), BoltResultSetData.getRecordListMoreElements());
 		Neo4jResultSet resultSet = new BoltNeo4jResultSet(null, StatementResult);
 
 		assertFalse(resultSet.isClosed());
@@ -58,8 +58,8 @@ public class BoltNeo4jResultSetTest {
 
 	//this method depends on the close() method
 	@Test public void isClosedReturnTrueWhenConnectionClosed() throws SQLException {
-		StatementResult StatementResult = ResultSetData
-				.buildResultCursor(ResultSetData.KEYS_RECORD_LIST_MORE_ELEMENTS, ResultSetData.RECORD_LIST_MORE_ELEMENTS);
+		StatementResult StatementResult = BoltResultSetData
+				.buildResultCursor(BoltResultSetData.getKeysRecordListMoreElements(), BoltResultSetData.getRecordListMoreElements());
 		Neo4jResultSet resultSet = new BoltNeo4jResultSet(null, StatementResult);
 
 		resultSet.close();

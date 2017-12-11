@@ -37,7 +37,6 @@ public class BoltNeo4jConnection extends Neo4jConnection implements Loggable {
 
 	private Session     session;
 	private Transaction transaction;
-	private boolean autoCommit = true;
 	private boolean loggable   = false;
 
 	/**
@@ -48,7 +47,7 @@ public class BoltNeo4jConnection extends Neo4jConnection implements Loggable {
 	 * @param url        Url used for this connection
 	 */
 	public BoltNeo4jConnection(Session session, Properties properties, String url) {
-		super(properties, url, BoltNeo4jResultSet.DEFAULT_HOLDABILITY);
+		super(properties, url, Neo4jResultSet.DEFAULT_HOLDABILITY);
 		this.session = session;
 	}
 
@@ -103,10 +102,6 @@ public class BoltNeo4jConnection extends Neo4jConnection implements Loggable {
 		}
 	}
 
-	@Override public boolean getAutoCommit() throws SQLException {
-		this.checkClosed();
-		return autoCommit;
-	}
 
 	@Override public void commit() throws SQLException {
 		this.checkClosed();

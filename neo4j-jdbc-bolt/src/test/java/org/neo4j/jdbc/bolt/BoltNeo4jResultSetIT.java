@@ -22,7 +22,7 @@ package org.neo4j.jdbc.bolt;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.neo4j.jdbc.bolt.data.StatementData;
+import org.neo4j.jdbc.data.StatementData;
 
 import java.sql.*;
 

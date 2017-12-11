@@ -23,6 +23,7 @@
 		<module>neo4j-jdbc-http</module>
 		<module>neo4j-jdbc-driver</module>
 		<module>neo4j-jdbc-examples</module>
+		<module>neo4j-jdbc-impermanent</module>
 	</modules>
 
 	<!-- =========== -->
@@ -75,7 +76,7 @@
 	<properties>
 		<!-- General -->
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<java.version>1.7</java.version>
+		<jdk>1.7</jdk>
 
 		<!-- Deps version -->
 		<powermock.version>1.7.3</powermock.version>
@@ -120,6 +121,11 @@
 				<artifactId>neo4j-jdbc-http</artifactId>
 				<version>${project.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>org.neo4j</groupId>
+				<artifactId>neo4j-jdbc-impermanent</artifactId>
+				<version>${project.version}</version>
+			</dependency>
 
 			<!-- Deps to the HTTP client -->
 			<dependency>
@@ -143,6 +149,11 @@
 			<!-- Deps to Neo4j -->
 			<dependency>
 				<groupId>org.neo4j</groupId>
+				<artifactId>neo4j</artifactId>
+				<version>${neo4j.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.neo4j</groupId>
 				<artifactId>neo4j-kernel</artifactId>
 				<version>${neo4j.version}</version>
 			</dependency>
@@ -150,6 +161,12 @@
 				<groupId>org.neo4j.test</groupId>
 				<artifactId>neo4j-harness</artifactId>
 				<version>${neo4j.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.neo4j</groupId>
+				<artifactId>neo4j-kernel</artifactId>
+				<version>${neo4j.version}</version>
+				<type>test-jar</type>
 			</dependency>
 
 			<!-- Deps to test framework -->
@@ -243,8 +260,8 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>${maven.plugin.compiler}</version>
 				<configuration>
-					<source>${java.version}</source>
-					<target>${java.version}</target>
+					<source>${jdk}</source>
+					<target>${jdk}</target>
 				</configuration>
 			</plugin>
 			<plugin>

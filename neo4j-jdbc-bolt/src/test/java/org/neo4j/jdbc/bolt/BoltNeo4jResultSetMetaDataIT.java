@@ -37,7 +37,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.neo4j.driver.internal.types.InternalTypeSystem;
-import org.neo4j.jdbc.bolt.data.StatementData;
+import org.neo4j.jdbc.data.StatementData;
 
 /**
  * @author AgileLARUS

@@ -26,7 +26,9 @@ import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,14 +37,36 @@ import java.util.Map;
  */
 public abstract class Neo4jResultSet implements java.sql.ResultSet {
 
+	public static final int    DEFAULT_HOLDABILITY = CLOSE_CURSORS_AT_COMMIT;
+	public static final int    DEFAULT_TYPE        = TYPE_FORWARD_ONLY;
+	public static final int    DEFAULT_CONCURRENCY = CONCUR_READ_ONLY;
+	public static final String COLUMN_NOT_PRESENT  = "Column not present in ResultSet";
+
+	protected int            type;
+	protected int            concurrency;
+	protected int            holdability;
+	protected Neo4jStatement statement;
+	protected boolean        wasNull;
+	protected List<String>   columnLabels;
+
 	/**
 	 * Close state of this ResultSet.
 	 */
 	protected boolean isClosed = false;
 
-	protected int currentRowNumber = 0;
-
+	protected              int currentRowNumber   = 0;
 	protected static final int DEFAULT_FETCH_SIZE = 1;
+
+	public Neo4jResultSet(Neo4jStatement statement, int... params) {
+		this.statement = statement;
+		this.columnLabels = new ArrayList<>();
+		this.type = params.length > 0 ? params[0] : TYPE_FORWARD_ONLY;
+		this.concurrency = params.length > 1 ? params[1] : CONCUR_READ_ONLY;
+		this.holdability = params.length > 2 ? params[2] : CLOSE_CURSORS_AT_COMMIT;
+	}
+
+	protected Neo4jResultSet() {
+	}
 
 
 	/*----------------------------------------*/
@@ -69,6 +93,11 @@ public abstract class Neo4jResultSet implements java.sql.ResultSet {
 	 */
 	@Override public boolean isClosed() throws SQLException {
 		return this.isClosed;
+	}
+
+	@Override public boolean wasNull() throws SQLException {
+		checkClosed();
+		return this.wasNull;
 	}
 
 	/*------------------------------------*/
@@ -110,6 +139,29 @@ public abstract class Neo4jResultSet implements java.sql.ResultSet {
 	@Override public int getFetchSize() throws SQLException {
 		this.checkClosed();
 		return DEFAULT_FETCH_SIZE;
+	}
+
+	@Override public int getType() throws SQLException {
+		checkClosed();
+		return this.type;
+	}
+
+	@Override public int getConcurrency() throws SQLException {
+		checkClosed();
+		return this.concurrency;
+	}
+
+	@Override public int getHoldability() throws SQLException {
+		checkClosed();
+		return this.holdability;
+	}
+
+	@Override public int findColumn(String columnLabel) throws SQLException {
+		checkClosed();
+		if (!this.columnLabels.contains(columnLabel)) {
+			throw new SQLException(COLUMN_NOT_PRESENT);
+		}
+		return this.columnLabels.indexOf(columnLabel) + 1;
 	}
 
 	protected abstract boolean innerNext() throws SQLException;

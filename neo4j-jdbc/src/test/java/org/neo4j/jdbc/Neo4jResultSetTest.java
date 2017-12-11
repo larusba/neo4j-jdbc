@@ -23,10 +23,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
+import org.mockito.internal.util.reflection.Whitebox;
 
 import java.sql.SQLException;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -35,7 +38,8 @@ import static org.mockito.Mockito.mock;
  */
 public class Neo4jResultSetTest {
 
-	@Rule public ExpectedException expectedEx = ExpectedException.none();
+	@Rule
+	public ExpectedException expectedEx = ExpectedException.none();
 
 	/*------------------------------*/
 	/*         isWrapperFor         */
@@ -91,5 +95,95 @@ public class Neo4jResultSetTest {
 	@Test public void clearWarningsShouldNotThrowException() throws SQLException {
 		Neo4jResultSet resultSet = mock(Neo4jResultSet.class, Mockito.CALLS_REAL_METHODS);
 		resultSet.clearWarnings();
+	}
+
+	/*------------------------------*/
+	/*         getHoldability       */
+	/*------------------------------*/
+
+	@Test public void getHoldabilityShouldThrowExceptionOnClosedRS() throws SQLException {
+		expectedEx.expect(SQLException.class);
+
+		Neo4jResultSet resultSet = mockClosedResultSet();
+
+		resultSet.getHoldability();
+	}
+
+	@Test public void getHoldabilityShouldReturnCorrectHoldability() throws SQLException {
+		Neo4jResultSet resultSet = mock(Neo4jResultSet.class, CALLS_REAL_METHODS);
+		doReturn(false).when(resultSet).isClosed();
+		Whitebox.setInternalState(resultSet, "holdability", Neo4jResultSet.CLOSE_CURSORS_AT_COMMIT);
+
+		assertEquals(Neo4jResultSet.CLOSE_CURSORS_AT_COMMIT, resultSet.getHoldability());
+	}
+
+	/*------------------------------*/
+	/*            getType           */
+	/*------------------------------*/
+
+	@Test public void getTypeShouldThrowExceptionOnClosedRS() throws SQLException {
+		expectedEx.expect(SQLException.class);
+
+		Neo4jResultSet resultSet = mockClosedResultSet();
+
+		resultSet.getType();
+	}
+
+	@Test public void getTypeShouldReturnCorrectType() throws SQLException {
+		Neo4jResultSet resultSet = mock(Neo4jResultSet.class, CALLS_REAL_METHODS);
+		doReturn(false).when(resultSet).isClosed();
+		Whitebox.setInternalState(resultSet, "type", Neo4jResultSet.TYPE_FORWARD_ONLY);
+
+		assertEquals(Neo4jResultSet.TYPE_FORWARD_ONLY, resultSet.getType());
+	}
+
+	/*------------------------------*/
+	/*        getConcurrency        */
+	/*------------------------------*/
+
+	@Test public void getConcurrencyShouldThrowExceptionOnClosedRS() throws SQLException {
+		expectedEx.expect(SQLException.class);
+
+		Neo4jResultSet resultSet = mockClosedResultSet();
+
+		resultSet.getConcurrency();
+	}
+
+	@Test public void getConcurrencyShouldReturnCorrectConcurrency() throws SQLException {
+		Neo4jResultSet resultSet = mock(Neo4jResultSet.class, CALLS_REAL_METHODS);
+		doReturn(false).when(resultSet).isClosed();
+		Whitebox.setInternalState(resultSet, "concurrency", Neo4jResultSet.CONCUR_READ_ONLY);
+
+		assertEquals(Neo4jResultSet.CONCUR_READ_ONLY, resultSet.getConcurrency());
+	}
+
+	/*------------------------------*/
+	/*            wasNull           */
+	/*------------------------------*/
+
+	@Test public void wasNullShouldThrowExceptionOnClosedResultSet() throws SQLException {
+		expectedEx.expect(SQLException.class);
+
+		Neo4jResultSet resultSet = mockClosedResultSet();
+
+		resultSet.wasNull();
+	}
+
+	@Test public void wasNullShouldReturnFalse() throws SQLException {
+		Neo4jResultSet resultSet = Mockito.mock(Neo4jResultSet.class, CALLS_REAL_METHODS);
+		Whitebox.setInternalState(resultSet, "wasNull", false);
+		resultSet.wasNull();
+	}
+
+	@Test public void wasNullShouldReturnTrue() throws SQLException {
+		Neo4jResultSet resultSet = Mockito.mock(Neo4jResultSet.class, CALLS_REAL_METHODS);
+		Whitebox.setInternalState(resultSet, "wasNull", true);
+		resultSet.wasNull();
+	}
+
+	private Neo4jResultSet mockClosedResultSet() throws SQLException {
+		Neo4jResultSet resultSet = mock(Neo4jResultSet.class, CALLS_REAL_METHODS);
+		doReturn(true).when(resultSet).isClosed();
+		return resultSet;
 	}
 }

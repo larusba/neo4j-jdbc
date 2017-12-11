@@ -29,7 +29,6 @@ import org.neo4j.jdbc.Neo4jStatement;
 import java.sql.BatchUpdateException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
@@ -37,8 +36,6 @@ import java.util.Arrays;
  * @since 3.0.0
  */
 public class BoltNeo4jStatement extends Neo4jStatement implements Loggable {
-
-	private int[]        rsParams;
 
 	private boolean loggable = false;
 
@@ -49,9 +46,7 @@ public class BoltNeo4jStatement extends Neo4jStatement implements Loggable {
 	 * @param rsParams   The params (type, concurrency and holdability) used to create a new ResultSet
 	 */
 	public BoltNeo4jStatement(BoltNeo4jConnection connection, int... rsParams) {
-		super(connection);
-		this.rsParams = rsParams;
-		this.batchStatements = new ArrayList<>();
+		super(connection, rsParams);
 	}
 
 	@Override public ResultSet executeQuery(String sql) throws SQLException {
@@ -76,7 +71,7 @@ public class BoltNeo4jStatement extends Neo4jStatement implements Loggable {
 
 		boolean hasResultSet = false;
 		if (result != null) {
-			hasResultSet = hasResultSet(sql);
+			hasResultSet = hasReturnClause(sql);
 			if (hasResultSet) {
 				this.currentResultSet = InstanceFactory.debug(BoltNeo4jResultSet.class, new BoltNeo4jResultSet(this,result, this.rsParams), this.isLoggable());
 				this.currentUpdateCount = -1;
@@ -115,43 +110,6 @@ public class BoltNeo4jStatement extends Neo4jStatement implements Loggable {
 			}
 		}
 		return result;
-	}
-
-	private boolean hasResultSet(String sql) {
-		return sql != null && sql.toLowerCase().contains("return");
-	}
-
-	@Override public int getResultSetConcurrency() throws SQLException {
-		this.checkClosed();
-		if (currentResultSet != null) {
-			return currentResultSet.getConcurrency();
-		}
-		if (this.rsParams.length > 1) {
-			return this.rsParams[1];
-		}
-		return BoltNeo4jResultSet.DEFAULT_CONCURRENCY;
-	}
-
-	@Override public int getResultSetType() throws SQLException {
-		this.checkClosed();
-		if (currentResultSet != null) {
-			return currentResultSet.getType();
-		}
-		if (this.rsParams.length > 0) {
-			return this.rsParams[0];
-		}
-		return BoltNeo4jResultSet.DEFAULT_TYPE;
-	}
-
-	@Override public int getResultSetHoldability() throws SQLException {
-		this.checkClosed();
-		if (currentResultSet != null) {
-			return currentResultSet.getHoldability();
-		}
-		if (this.rsParams.length > 2) {
-			return this.rsParams[2];
-		}
-		return BoltNeo4jResultSet.DEFAULT_HOLDABILITY;
 	}
 
 	/*-------------------*/

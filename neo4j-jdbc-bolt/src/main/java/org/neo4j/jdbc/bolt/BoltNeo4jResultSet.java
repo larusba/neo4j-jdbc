@@ -58,28 +58,16 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 	private StatementResult        iterator;
 	private Neo4jResultSetMetaData metaData;
 	private Record                 current;
-	private List<String>           keys;
 	private List<Type>             classes;
-	private int                    type;
-	private int                    concurrency;
-	private int                    holdability;
-	private boolean                wasNull;
-
-	public static final int DEFAULT_TYPE        = TYPE_FORWARD_ONLY;
-	public static final int DEFAULT_CONCURRENCY = CONCUR_READ_ONLY;
-	public static final int DEFAULT_HOLDABILITY = CLOSE_CURSORS_AT_COMMIT;
 
 	private boolean loggable  = false;
 	private boolean flattened = false;
 
 	private static final List<String> ACCEPTED_TYPES_FOR_FLATTENING = Arrays.asList("NODE", "RELATIONSHIP");
-	private Neo4jStatement statement;
 
 	private int flatten;
 
 	private LinkedList<Record> prefetchedRecords = null;
-
-	private static final String COLUMN_NOT_PRESENT = "Column not present in ResultSet";
 
 	/**
 	 * Default constructor for this class, if no params are given or if some params are missing it uses the defaults.
@@ -91,10 +79,9 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 	 *                  <code>CONCUR_READ_ONLY</code>,
 	 */
 	public BoltNeo4jResultSet(Neo4jStatement statement, StatementResult iterator, int... params) {
-		this.statement = statement;
+		super(statement, params);
 		this.iterator = iterator;
 
-		this.keys = new ArrayList<>();
 		this.classes = new ArrayList<>();
 		this.prefetchedRecords = new LinkedList<>();
 
@@ -110,7 +97,7 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 			this.flattened = true;
 		} else if (this.iterator != null) {
 			//Keys are exactly the ones returned from the iterator
-			this.keys = this.iterator.keys();
+			this.columnLabels = this.iterator.keys();
 			if (this.iterator.hasNext()) {
 				for (Value value : this.iterator.peek().values()) {
 					this.classes.add(value.type());
@@ -118,11 +105,7 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 			}
 		}
 
-		this.type = params.length > 0 ? params[0] : TYPE_FORWARD_ONLY;
-		this.concurrency = params.length > 1 ? params[1] : CONCUR_READ_ONLY;
-		this.holdability = params.length > 2 ? params[2] : CLOSE_CURSORS_AT_COMMIT;
-
-		this.metaData = InstanceFactory.debug(BoltNeo4jResultSetMetaData.class, new BoltNeo4jResultSetMetaData(this.classes, this.keys), this.isLoggable());
+		this.metaData = InstanceFactory.debug(BoltNeo4jResultSetMetaData.class, new BoltNeo4jResultSetMetaData(this.classes, this.columnLabels), this.isLoggable());
 	}
 
 	private void flattenResultSet() {
@@ -134,8 +117,8 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 
 	private void flattenRecord(Record r) {
 		for (Pair<String, Value> pair : r.fields()) {
-			if (keys.indexOf(pair.key()) == -1) {
-				keys.add(pair.key());
+			if (columnLabels.indexOf(pair.key()) == -1) {
+				columnLabels.add(pair.key());
 				classes.add(r.get(pair.key()).type());
 			}
 			Value val = r.get(pair.key());
@@ -150,30 +133,30 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 	}
 
 	private void flattenNode(Node node, String nodeKey) {
-		if (keys.indexOf(nodeKey + ".id") == -1) {
-			keys.add(nodeKey + ".id");
+		if (columnLabels.indexOf(nodeKey + ".id") == -1) {
+			columnLabels.add(nodeKey + ".id");
 			classes.add(InternalTypeSystem.TYPE_SYSTEM.INTEGER());
-			keys.add(nodeKey + ".labels");
+			columnLabels.add(nodeKey + ".labels");
 			classes.add(InternalTypeSystem.TYPE_SYSTEM.LIST());
 		}
 		for (String key : node.keys()) {
-			if (keys.indexOf(nodeKey + "." + key) == -1) {
-				keys.add(nodeKey + "." + key);
+			if (columnLabels.indexOf(nodeKey + "." + key) == -1) {
+				columnLabels.add(nodeKey + "." + key);
 				classes.add(node.get(key).type());
 			}
 		}
 	}
 
 	private void flattenRelationship(Relationship rel, String relationshipKey) {
-		if (keys.indexOf(relationshipKey + ".id") == -1) {
-			keys.add(relationshipKey + ".id");
+		if (columnLabels.indexOf(relationshipKey + ".id") == -1) {
+			columnLabels.add(relationshipKey + ".id");
 			classes.add(InternalTypeSystem.TYPE_SYSTEM.INTEGER());
-			keys.add(relationshipKey + ".type");
+			columnLabels.add(relationshipKey + ".type");
 			classes.add(InternalTypeSystem.TYPE_SYSTEM.STRING());
 		}
 		for (String key : rel.keys()) {
-			if (keys.indexOf(relationshipKey + "." + key) == -1) {
-				keys.add(relationshipKey + "." + key);
+			if (columnLabels.indexOf(relationshipKey + "." + key) == -1) {
+				columnLabels.add(relationshipKey + "." + key);
 				classes.add(rel.get(key).type());
 			}
 		}
@@ -212,11 +195,6 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 			throw new SQLException("ResultCursor not initialized");
 		}
 		this.isClosed = true;
-	}
-
-	@Override public boolean wasNull() throws SQLException {
-		checkClosed();
-		return this.wasNull;
 	}
 
 	@Override public String getString(int columnIndex) throws SQLException {
@@ -382,7 +360,7 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 		if (this.current.containsKey(label)) {
 			//Requested value is not flattened
 			value = this.current.get(label);
-		} else if (this.flattened && this.keys.contains(label)) {
+		} else if (this.flattened && this.columnLabels.contains(label)) {
 			//Requested value is flattened
 			String[] labelKeys = label.split("\\.");
 			value = this.fetchPropertyValue(labelKeys[0], labelKeys[1]);
@@ -396,14 +374,14 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 
 	private Value fetchValueFromIndex(int index) throws SQLException {
 		Value value;
-		if (this.flattened && index > 0 && index - 1 <= this.keys.size()) {
+		if (this.flattened && index > 0 && index - 1 <= this.columnLabels.size()) {
 			//Requested value is to be considered from flattened results
-			String[] indexKeys = this.keys.get(index - 1).split("\\.");
+			String[] indexKeys = this.columnLabels.get(index - 1).split("\\.");
 			if (indexKeys.length > 1) { //Requested value is a virtual column
 				value = this.fetchPropertyValue(indexKeys[0], indexKeys[1]);
 			} else {
 				//Requested value is the node/relationship itself
-				value = this.current.get(this.keys.get(index - 1));
+				value = this.current.get(this.columnLabels.get(index - 1));
 			}
 		} else if (index > 0 && index - 1 <= this.current.size()) {
 			//Requested value is not flattened
@@ -426,29 +404,6 @@ public class BoltNeo4jResultSet extends Neo4jResultSet implements Loggable {
 		checkClosed();
 		Value value = this.fetchValueFromLabel(columnLabel);
 		return value.isNull() ? 0 : value.asLong();
-	}
-
-	@Override public int findColumn(String columnLabel) throws SQLException {
-		checkClosed();
-		if (!this.keys.contains(columnLabel)) {
-			throw new SQLException(COLUMN_NOT_PRESENT);
-		}
-		return this.keys.indexOf(columnLabel) + 1;
-	}
-
-	@Override public int getType() throws SQLException {
-		checkClosed();
-		return this.type;
-	}
-
-	@Override public int getConcurrency() throws SQLException {
-		checkClosed();
-		return this.concurrency;
-	}
-
-	@Override public int getHoldability() throws SQLException {
-		checkClosed();
-		return this.holdability;
 	}
 
 	@Override public boolean getBoolean(int columnIndex) throws SQLException {

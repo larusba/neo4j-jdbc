@@ -46,7 +46,7 @@ public abstract class Neo4jDriver implements java.sql.Driver {
 	/**
 	 * Driver prefix for the connection url.
 	 */
-	private String driverPrefix;
+	protected String driverPrefix;
 
 	/**
 	 * Constructor for extended class.

@@ -56,6 +56,7 @@ public abstract class Neo4jConnection implements java.sql.Connection {
 	private int holdability;
 
 	protected static final String FASTEST_STATEMENT = "RETURN 1";
+	protected boolean autoCommit = true;
 	
 	/**
 	 * Default constructor with properties.
@@ -352,6 +353,11 @@ public abstract class Neo4jConnection implements java.sql.Connection {
 	@Override public String getSchema() throws SQLException {
 		checkClosed();
 		return null;
+	}
+
+	@Override public boolean getAutoCommit() throws SQLException {
+		this.checkClosed();
+		return autoCommit;
 	}
 
 	/*---------------------------------*/

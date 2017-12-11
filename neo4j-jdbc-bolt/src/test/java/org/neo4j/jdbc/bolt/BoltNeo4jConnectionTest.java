@@ -30,7 +30,7 @@ import org.neo4j.driver.internal.logging.DevNullLogging;
 import org.neo4j.driver.internal.spi.*;
 import org.neo4j.driver.v1.AccessMode;
 import org.neo4j.driver.v1.Session;
-import org.neo4j.jdbc.bolt.data.StatementData;
+import org.neo4j.jdbc.data.StatementData;
 
 import java.sql.*;
 import java.sql.Connection;

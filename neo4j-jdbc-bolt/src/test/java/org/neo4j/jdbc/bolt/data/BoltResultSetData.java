@@ -34,11 +34,13 @@ import org.neo4j.driver.v1.Values;
 import org.neo4j.driver.v1.types.Entity;
 import org.neo4j.driver.v1.types.Node;
 import org.neo4j.driver.v1.types.Path;
+import org.neo4j.jdbc.data.ResultSetData;
 
 import java.lang.reflect.Method;
 import java.util.*;
 
 import static java.util.Arrays.asList;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,29 +48,10 @@ import static org.mockito.Mockito.when;
  * @author AgileLARUS
  * @since 3.0.0
  */
-public class ResultSetData {
-	public static List<Object[]> RECORD_LIST_EMPTY = Collections.emptyList();
-	public static List<Object[]> RECORD_LIST_ONE_ELEMENT;
-	public static List<Object[]> RECORD_LIST_ONE_NULL_ELEMENT;
-	public static List<Object[]> RECORD_LIST_MORE_ELEMENTS;
-	public static List<Object[]> RECORD_LIST_MORE_ELEMENTS_DIFF;
-	public static List<Object[]> RECORD_LIST_MORE_ELEMENTS_MIXED;
+public class BoltResultSetData extends ResultSetData {
 	public static List<Object[]> RECORD_LIST_MORE_ELEMENTS_NODES;
 	public static List<Object[]> RECORD_LIST_MORE_ELEMENTS_PATHS;
 	public static List<Object[]> RECORD_LIST_MORE_ELEMENTS_RELATIONS;
-	public static List<Object[]> RECORD_LIST_WITH_ARRAY;
-
-	public static String[] KEYS_RECORD_LIST_EMPTY                   = new String[] {};
-	public static String[] KEYS_RECORD_LIST_ONE_ELEMENT             = new String[] { "columnA", "columnB" };
-	public static String[] KEYS_RECORD_LIST_ONE_NULL_ELEMENT        = KEYS_RECORD_LIST_ONE_ELEMENT;
-	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS           = KEYS_RECORD_LIST_ONE_ELEMENT;
-	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_DIFF      = new String[] { "columnA", "columnB", "columnC" };
-	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_MIXED     = new String[] { "columnInt", "columnString", "columnFloat", "columnShort", "columnDouble",
-			"columnBoolean", "columnLong", "columnNull" };
-	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_NODES     = new String[] { "node" };
-	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_PATHS     = new String[] { "path" };
-	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_RELATIONS = new String[] { "relation" };
-	public static String[] KEYS_RECORD_LIST_WITH_ARRAY              = new String[] { "array" };
 
 	private static Method runResponseCollectorMethod;
 	private static Method pullAllResponseCollectorMethod;
@@ -77,24 +60,8 @@ public class ResultSetData {
 	private static Path path2;
 
 	@BeforeClass public static void initialize() {
-		RECORD_LIST_ONE_ELEMENT = new LinkedList<>();
-		RECORD_LIST_ONE_ELEMENT.add(new Object[] { "valueA1", "valueB1" });
-
-		RECORD_LIST_ONE_NULL_ELEMENT = new LinkedList<>();
-		RECORD_LIST_ONE_NULL_ELEMENT.add(new Object[] { null, null });
-		
-		RECORD_LIST_MORE_ELEMENTS = new LinkedList<>();
-		RECORD_LIST_MORE_ELEMENTS.add(new Object[] { "valueA1", "valueB1" });
-		RECORD_LIST_MORE_ELEMENTS.add(new Object[] { "valueA2", "valueB2" });
-		RECORD_LIST_MORE_ELEMENTS.add(new Object[] { "valueA3", "valueB3" });
-
-		RECORD_LIST_MORE_ELEMENTS_MIXED = new LinkedList<>();
-
-		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 1, "value1", 0.1f, (short) 1, 02.29D, true, 2L, null });
-		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 2, "value2", 0.2f, (short) 2, 20.16D, false, 6L, null });
-
+		ResultSetData.initialize();
 		RECORD_LIST_MORE_ELEMENTS_NODES = new LinkedList<>();
-
 		RECORD_LIST_MORE_ELEMENTS_NODES.add(new Object[] { new InternalNode(1, new LinkedList<String>() {
 			{
 				this.add("label1");
@@ -118,7 +85,6 @@ public class ResultSetData {
 		}) });
 
 		RECORD_LIST_MORE_ELEMENTS_RELATIONS = new LinkedList<>();
-
 		RECORD_LIST_MORE_ELEMENTS_RELATIONS.add(new Object[] { new InternalRelationship(1, 1, 2, "type1", new HashMap<String, Value>() {
 			{
 				this.put("property1", new StringValue("value"));
@@ -137,16 +103,6 @@ public class ResultSetData {
 		RECORD_LIST_MORE_ELEMENTS_PATHS = new LinkedList<>();
 		RECORD_LIST_MORE_ELEMENTS_PATHS.add(new Object[] { path1 });
 		RECORD_LIST_MORE_ELEMENTS_PATHS.add(new Object[] { path2 });
-
-		RECORD_LIST_MORE_ELEMENTS_DIFF = new LinkedList<>();
-		RECORD_LIST_MORE_ELEMENTS_DIFF.add(new Object[] { "valueA", "valueB" });
-		RECORD_LIST_MORE_ELEMENTS_DIFF.add(new Object[] { "valueA", "valueB", "valueC" });
-
-		RECORD_LIST_WITH_ARRAY = new ArrayList<>();
-		RECORD_LIST_WITH_ARRAY.add(new Object[] { new String[] { "a", "b", "c" } });
-		RECORD_LIST_WITH_ARRAY.add(new Object[] { new Integer[] { 5, 10, 99 } });
-		RECORD_LIST_WITH_ARRAY.add(new Object[] { new Boolean[] { true, false, false } });
-		RECORD_LIST_WITH_ARRAY.add(new Object[] { new Double[] { 6.5, 4.3, 2.1 } });
 
 		fixPublicForInternalResultCursor();
 	}
@@ -262,47 +218,26 @@ public class ResultSetData {
 	public static StatementResult buildResultCursor(String[] keys, final List<Object[]> data) {
 
 		try {
-			Connection connection = mock(Connection.class);
-
 			StatementResult cursor = mock(StatementResult.class);
 			final List<String> columns = asList(keys);
 			when(cursor.keys()).thenReturn(columns);
 
 			final Iterator<Object[]> it = data.iterator();
 			when(cursor.hasNext()).thenAnswer(new Answer<Boolean>() {
-				@Override
-				public Boolean answer(InvocationOnMock invocationOnMock) throws Throwable {
+				@Override public Boolean answer(InvocationOnMock invocationOnMock) throws Throwable {
 					return it.hasNext();
 				}
 			});
-			when (cursor.next()).thenAnswer(new Answer<Record>() {
-				@Override
-				public Record answer(InvocationOnMock invocationOnMock) throws Throwable {
+			when(cursor.next()).thenAnswer(new Answer<Record>() {
+				@Override public Record answer(InvocationOnMock invocationOnMock) throws Throwable {
 					return new InternalRecord(columns, Values.values(it.next()));
 				}
 			});
-			when (cursor.peek()).thenAnswer(new Answer<Record>() {
-				@Override
-				public Record answer(InvocationOnMock invocationOnMock) throws Throwable {
+			when(cursor.peek()).thenAnswer(new Answer<Record>() {
+				@Override public Record answer(InvocationOnMock invocationOnMock) throws Throwable {
 					return new InternalRecord(columns, Values.values(data.get(0)));
 				}
 			});
-/*
-			InternalStatementResult cursor = new InternalStatementResult(connection, null);
-			StreamCollector responseCollector = (StreamCollector) runResponseCollectorMethod.invoke(cursor);
-			responseCollector.keys(keys);
-			responseCollector.done();
-
-			StreamCollector pullAllResponseCollector = (StreamCollector) pullAllResponseCollectorMethod.invoke(cursor);
-
-			for(Object[] values : data){
-				pullAllResponseCollector.record(values(values));
-			}
-			pullAllResponseCollector.done();
-			connection.run("<unknown>", ParameterSupport.NO_PARAMETERS, responseCollector);
-			connection.pullAll(pullAllResponseCollector);
-			//connection.sendAll();
-*/
 			return cursor;
 		} catch (Exception e) {
 			throw new RuntimeException(e);

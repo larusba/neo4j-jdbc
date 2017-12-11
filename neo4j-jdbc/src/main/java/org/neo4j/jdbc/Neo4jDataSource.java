@@ -120,9 +120,9 @@ public abstract class Neo4jDataSource implements javax.sql.DataSource {
 		String url = NEO4J_JDBC_PREFIX + protocol + "://" + getServerName() + ((getPortNumber() > 0) ? ":" + getPortNumber() : "") + "?" + ((!getIsSsl()) ?
 				"nossl," :
 				"");
-		if (Objects.nonNull(getUser())) {
+		if (getUser() != null) {
 			url += "user=" + getUser();
-			if (Objects.nonNull(getPassword())) {
+			if (getPassword() != null) {
 				url += ",password=" + getPassword();
 			}
 		}

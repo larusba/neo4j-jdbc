@@ -37,12 +37,10 @@ import static java.util.Arrays.copyOf;
  */
 public class BoltNeo4jPreparedStatement extends Neo4jPreparedStatement implements Loggable {
 
-	private int[]       rsParams;
 	private boolean loggable = false;
 
 	public BoltNeo4jPreparedStatement(BoltNeo4jConnection connection, String rawStatement, int... rsParams) {
-		super(connection, rawStatement);
-		this.rsParams = rsParams;
+		super(connection, rawStatement, rsParams);
 	}
 
 	@Override public ResultSet executeQuery() throws SQLException {

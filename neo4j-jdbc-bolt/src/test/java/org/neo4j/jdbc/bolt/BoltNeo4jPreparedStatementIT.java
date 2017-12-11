@@ -35,7 +35,7 @@ import java.sql.SQLException;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.neo4j.graphdb.Result;
-import org.neo4j.jdbc.bolt.data.StatementData;
+import org.neo4j.jdbc.data.StatementData;
 
 /**
  * @author AgileLARUS

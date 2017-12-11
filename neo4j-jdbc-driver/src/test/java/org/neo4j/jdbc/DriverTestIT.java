@@ -35,6 +35,7 @@ import org.junit.rules.ExpectedException;
 import org.neo4j.harness.junit.Neo4jRule;
 import org.neo4j.jdbc.bolt.BoltNeo4jConnection;
 import org.neo4j.jdbc.http.HttpNeo4jConnection;
+import org.neo4j.jdbc.impermanent.ImpermanentNeo4jConnection;
 
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
@@ -66,6 +67,12 @@ public class DriverTestIT {
 		Driver driver = new Driver();
 		Connection connection = driver.connect("jdbc:neo4j:" + neo4j.boltURI() + "/?nossl", new Properties());
 		Assert.assertTrue(connection instanceof BoltNeo4jConnection);
+	}
+
+	@Test public void shouldReturnAnImpermanentConnection() throws Exception {
+		Driver driver = new Driver();
+		Connection connection = driver.connect("jdbc:neo4j:mem", new Properties());
+		Assert.assertTrue(connection instanceof ImpermanentNeo4jConnection);
 	}
 
 	@Test public void shouldReturnNullWithBadUrl() throws SQLException {
