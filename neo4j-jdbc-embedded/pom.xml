@@ -37,12 +37,6 @@
             <groupId>org.neo4j</groupId>
             <artifactId>neo4j-kernel</artifactId>
         </dependency>
-        <!--<dependency>-->
-            <!--<groupId>org.neo4j</groupId>-->
-            <!--<artifactId>neo4j-kernel</artifactId>-->
-            <!--<type>test-jar</type>-->
-            <!--<scope>provided</scope>-->
-        <!--</dependency>-->
         <dependency>
             <groupId>org.neo4j</groupId>
             <artifactId>neo4j</artifactId>

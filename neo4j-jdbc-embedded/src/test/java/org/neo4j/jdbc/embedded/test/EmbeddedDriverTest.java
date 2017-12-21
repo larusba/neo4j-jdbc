@@ -23,12 +23,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.jdbc.Neo4jDriver;
-import org.neo4j.jdbc.embedded.EmbeddedNeo4jDriver;
-import org.powermock.api.mockito.PowerMockito;
+import org.neo4j.jdbc.embedded.EmbeddedDriver;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
@@ -49,8 +47,8 @@ import static org.powermock.api.mockito.PowerMockito.whenNew;
  * @author Gianmarco Laggia @ Larus B.A.
  * @since 3.2.0
  */
-@RunWith(PowerMockRunner.class) @PrepareForTest({ GraphDatabaseFactory.class, EmbeddedNeo4jDriver.class})
-public class EmbeddedNeo4jDriverTest {
+@RunWith(PowerMockRunner.class) @PrepareForTest({ GraphDatabaseFactory.class, EmbeddedDriver.class})
+public class EmbeddedDriverTest {
 	@Rule
 	public ExpectedException expectedEx = ExpectedException.none();
 
@@ -69,7 +67,7 @@ public class EmbeddedNeo4jDriverTest {
 	/*------------------------------*/
 
 	@Test public void shouldConnectCreateConnection() throws Exception {
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		Connection connection = driver.connect(COMPLETE_VALID_URL, null);
 		assertNotNull(connection);
 	}
@@ -78,20 +76,20 @@ public class EmbeddedNeo4jDriverTest {
 		Properties properties = new Properties();
 		properties.put("test", "TEST_VALUE");
 
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		Connection connection = driver.connect(COMPLETE_VALID_URL, properties);
 		assertNotNull(connection);
 	}
 
 	@Test public void shouldCreateMultipleInMemoryConnectionToDifferentDatabases() throws SQLException {
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		assertNotNull(driver.connect(COMPLETE_VALID_URL + ":one", null));
 		assertNotNull(driver.connect(COMPLETE_VALID_URL + ":two", null));
 		assertNotNull(driver.connect(COMPLETE_VALID_URL + ":three", null));
 	}
 
 	@Test public void shouldConnectReturnNullIfUrlNotValid() throws SQLException {
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		assertNull(driver.connect("jdbc:neo4j:http://localhost:7474", null));
 		assertNull(driver.connect("bolt://localhost:7474", null));
 		assertNull(driver.connect("jdbcbolt://localhost:7474", null));
@@ -102,7 +100,7 @@ public class EmbeddedNeo4jDriverTest {
 	@Test public void shouldConnectThrowExceptionOnNullURL() throws SQLException {
 		expectedEx.expect(SQLException.class);
 
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		driver.connect(null, null);
 	}
 
@@ -110,13 +108,13 @@ public class EmbeddedNeo4jDriverTest {
 	/*          acceptsURL          */
 	/*------------------------------*/
 	@Test public void shouldAcceptURLOK() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException, SQLException {
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		assertTrue(driver.acceptsURL("jdbc:neo4j:file:/folder"));
 		assertTrue(driver.acceptsURL("jdbc:neo4j:file:/otherFolder"));
 	}
 
 	@Test public void shouldAcceptURLKO() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException, SQLException {
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		assertFalse(driver.acceptsURL("jdbc:neo4j:file"));
 		assertFalse(driver.acceptsURL("jdbc:neo4j:http://localhost:7474"));
 		assertFalse(driver.acceptsURL("jdbc:file://192.168.0.1:7474"));
@@ -129,7 +127,7 @@ public class EmbeddedNeo4jDriverTest {
 	@Test public void shouldThrowException() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException, SQLException {
 		expectedEx.expect(SQLException.class);
 
-		Neo4jDriver driver = new EmbeddedNeo4jDriver();
+		Neo4jDriver driver = new EmbeddedDriver();
 		assertFalse(driver.acceptsURL(null));
 	}
 }

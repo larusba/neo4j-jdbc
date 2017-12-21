@@ -1,2 +1,2 @@
-org.neo4j.jdbc.embedded.EmbeddedNeo4jDriver
+org.neo4j.jdbc.embedded.EmbeddedDriver
 

@@ -35,14 +35,14 @@ import java.util.Properties;
  * @author Gianmarco Laggia @ Larus B.A.
  * @since 3.2.0
  */
-public class EmbeddedNeo4jDriver extends Neo4jDriver {
+public class EmbeddedDriver extends Neo4jDriver {
 
 	public static final  String                            JDBC_EMBEDDED_PREFIX = "file";
 	private static final Map<String, GraphDatabaseService> databases            = new /*Weak*/HashMap<>();
 
 	static {
 		try {
-			EmbeddedNeo4jDriver driver = new EmbeddedNeo4jDriver();
+			EmbeddedDriver driver = new EmbeddedDriver();
 			DriverManager.registerDriver(driver);
 		} catch (SQLException e) {
 			throw new ExceptionInInitializerError(e);
@@ -54,7 +54,7 @@ public class EmbeddedNeo4jDriver extends Neo4jDriver {
 	 *
 	 * @throws SQLException sqlexception
 	 */
-	public EmbeddedNeo4jDriver() throws SQLException {
+	public EmbeddedDriver() throws SQLException {
 		super(JDBC_EMBEDDED_PREFIX);
 	}
 

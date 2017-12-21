@@ -42,7 +42,7 @@ public class EmbeddedNeo4jResultSetIT {
 	public ExpectedException expectedEx = ExpectedException.none();
 
 	@BeforeClass public static void setUp() throws ClassNotFoundException {
-		Class.forName("org.neo4j.jdbc.embedded.EmbeddedNeo4jDriver");
+		Class.forName("org.neo4j.jdbc.embedded.EmbeddedDriver");
 	}
 
 	/*------------------------------*/
