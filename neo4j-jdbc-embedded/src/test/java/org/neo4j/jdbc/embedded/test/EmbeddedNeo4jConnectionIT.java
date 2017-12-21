@@ -25,6 +25,7 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.jdbc.data.StatementData;
 import org.neo4j.jdbc.embedded.EmbeddedNeo4jConnection;
+import org.neo4j.jdbc.embedded.EmbeddedNeo4jDriver;
 import org.neo4j.jdbc.utils.UncaughtExceptionLogger;
 
 import java.io.File;
@@ -49,6 +50,7 @@ public class EmbeddedNeo4jConnectionIT {
 
 	@BeforeClass public static void setup() throws ClassNotFoundException, SQLException {
 		NEO4J_JDBC_IMPERMANENT_URL = "jdbc:neo4j:file:target/test-db";
+		DriverManager.registerDriver(new EmbeddedNeo4jDriver());
 		EmbeddedNeo4jConnection conn = (EmbeddedNeo4jConnection) DriverManager.getConnection(NEO4J_JDBC_IMPERMANENT_URL);
 		neo4j = conn.getGraphDatabaseService();
 	}
