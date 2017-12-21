@@ -50,7 +50,7 @@ import static org.powermock.api.mockito.PowerMockito.whenNew;
  * @since 3.2.0
  */
 @RunWith(PowerMockRunner.class) @PrepareForTest({ GraphDatabaseFactory.class, EmbeddedNeo4jDriver.class})
-public class EmbeddedNeo4JDriverTest {
+public class EmbeddedNeo4jDriverTest {
 	@Rule
 	public ExpectedException expectedEx = ExpectedException.none();
 

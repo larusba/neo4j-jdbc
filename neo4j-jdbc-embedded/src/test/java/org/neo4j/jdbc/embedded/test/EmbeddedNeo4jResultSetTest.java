@@ -35,7 +35,7 @@ import static org.junit.Assert.*;
  * @author Gianmarco Laggia @ Larus B.A.
  * @since 3.2.0
  */
-public class EmbeddedNeo4JResultSetTest {
+public class EmbeddedNeo4jResultSetTest {
 	@Rule
 	public ExpectedException expectedEx = ExpectedException.none();
 

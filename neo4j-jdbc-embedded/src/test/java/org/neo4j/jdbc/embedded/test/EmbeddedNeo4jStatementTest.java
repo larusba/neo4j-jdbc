@@ -57,7 +57,7 @@ import static org.powermock.api.mockito.PowerMockito.whenNew;
  */
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({ EmbeddedNeo4jStatement.class, EmbeddedNeo4jResultSet.class })
-public class EmbeddedNeo4JStatementTest {
+public class EmbeddedNeo4jStatementTest {
 	@Rule
 	public ExpectedException expectedEx = ExpectedException.none();
 

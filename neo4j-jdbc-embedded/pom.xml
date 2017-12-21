@@ -20,7 +20,7 @@
     <!-- =========== -->
     <!-- = General = -->
     <!-- =========== -->
-    <name>Neo4j JDBC Impermanent</name>
+    <name>Neo4j JDBC Embedded</name>
     <description>Embedded implementation for the Neo4j JDBC Driver</description>
     <artifactId>neo4j-jdbc-embedded</artifactId>
 

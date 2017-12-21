@@ -38,7 +38,7 @@ import static org.neo4j.jdbc.embedded.test.util.Mocker.*;
  * @author Gianmarco Laggia @ Larus B.A.
  * @since 3.2.0
  */
-public class EmbeddedNeo4JConnectionTest {
+public class EmbeddedNeo4jConnectionTest {
 
 	@Rule
 	public ExpectedException expectedEx = ExpectedException.none();

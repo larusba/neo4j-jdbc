@@ -61,7 +61,7 @@ public class EmbeddedNeo4jConnection extends Neo4jConnection {
 	/**
 	 * Constructor with Session.
 	 *
-	 * @param db Impermanent database
+	 * @param db Embedded database
 	 */
 	public EmbeddedNeo4jConnection(GraphDatabaseService db) {
 		this(db, new Properties(), "");
