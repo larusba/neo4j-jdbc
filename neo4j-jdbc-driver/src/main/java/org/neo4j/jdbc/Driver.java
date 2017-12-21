@@ -23,8 +23,8 @@
 package org.neo4j.jdbc;
 
 import org.neo4j.jdbc.bolt.BoltNeo4jDriver;
+import org.neo4j.jdbc.embedded.EmbeddedNeo4jDriver;
 import org.neo4j.jdbc.http.HttpNeo4jDriver;
-import org.neo4j.jdbc.impermanent.ImpermanentNeo4jDriver;
 
 import java.lang.reflect.Constructor;
 import java.sql.Connection;
@@ -44,7 +44,7 @@ public class Driver extends Neo4jDriver {
 	static {
 		DRIVERS.put(BoltNeo4jDriver.JDBC_BOLT_PREFIX, BoltNeo4jDriver.class);
 		DRIVERS.put(HttpNeo4jDriver.JDBC_HTTP_PREFIX, HttpNeo4jDriver.class);
-		DRIVERS.put(ImpermanentNeo4jDriver.JDBC_IMPERMANENT_PREFIX, ImpermanentNeo4jDriver.class);
+		DRIVERS.put(EmbeddedNeo4jDriver.JDBC_EMBEDDED_PREFIX, EmbeddedNeo4jDriver.class);
 	}
 
 	/**

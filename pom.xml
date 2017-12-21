@@ -23,7 +23,7 @@
 		<module>neo4j-jdbc-http</module>
 		<module>neo4j-jdbc-driver</module>
 		<module>neo4j-jdbc-examples</module>
-		<module>neo4j-jdbc-impermanent</module>
+		<module>neo4j-jdbc-embedded</module>
 	</modules>
 
 	<!-- =========== -->
@@ -123,7 +123,7 @@
 			</dependency>
 			<dependency>
 				<groupId>org.neo4j</groupId>
-				<artifactId>neo4j-jdbc-impermanent</artifactId>
+				<artifactId>neo4j-jdbc-embedded</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 

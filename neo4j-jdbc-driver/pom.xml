@@ -34,7 +34,7 @@
         </dependency>
         <dependency>
             <groupId>org.neo4j</groupId>
-            <artifactId>neo4j-jdbc-impermanent</artifactId>
+            <artifactId>neo4j-jdbc-embedded</artifactId>
         </dependency>
     </dependencies>
 
