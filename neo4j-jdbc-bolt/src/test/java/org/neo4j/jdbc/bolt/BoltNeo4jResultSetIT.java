@@ -242,4 +242,31 @@ public class BoltNeo4jResultSetIT {
 		JdbcConnectionTestUtils.closeConnection(con, stmt, rs);
 	}
 
+	@Test public void shouldGetRowReturnNodeValuesWithBoolean() throws SQLException {
+		neo4j.getGraphDatabase().execute("CREATE (:Test {boolValue: true})");
+
+		Connection con = JdbcConnectionTestUtils.getConnection(neo4j,",flatten=1");
+		Statement stmt = con.createStatement();
+		ResultSet rs = stmt.executeQuery("MATCH (x:Test) RETURN x");
+
+		rs.next();
+		assertEquals(4, rs.findColumn("x.boolValue"));
+		assertEquals("true", rs.getString("x.boolValue"));
+
+		JdbcConnectionTestUtils.closeConnection(con, stmt, rs);
+	}
+
+	@Test public void shouldGetRowReturnValidBoolean() throws SQLException {
+		neo4j.getGraphDatabase().execute("create (:User{admin:true})");
+
+		Connection con = JdbcConnectionTestUtils.getConnection(neo4j);
+		Statement stmt = con.createStatement();
+		ResultSet rs = stmt.executeQuery("match (u:User) return u.admin as admin");
+
+		rs.next();
+		assertEquals("true", rs.getString("admin"));
+
+		JdbcConnectionTestUtils.closeConnection(con, stmt, rs);
+	}
+
 }

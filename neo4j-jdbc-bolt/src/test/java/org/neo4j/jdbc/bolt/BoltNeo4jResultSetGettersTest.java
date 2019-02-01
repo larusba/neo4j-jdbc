@@ -141,6 +141,18 @@ public class BoltNeo4jResultSetGettersTest {
 		assertEquals("value2", resultSet.getString(2));
 	}
 
+	@Test public void getBooleanByIndexShouldReturnString() throws SQLException {
+		StatementResult statementResult = ResultSetData
+				.buildResultCursor(ResultSetData.KEYS_RECORD_LIST_MORE_ELEMENTS_MIXED, ResultSetData.RECORD_LIST_MORE_ELEMENTS_MIXED);
+		ResultSet resultSet = BoltNeo4jResultSet.newInstance(false, null, statementResult);
+
+		resultSet.next();
+		assertEquals("true", resultSet.getString(6));
+
+		resultSet.next();
+		assertEquals("false", resultSet.getString(6));
+	}
+
 	@Test public void getStringByIndexShouldThrowExceptionNoIndex() throws SQLException {
 		expectedEx.expect(SQLException.class);
 
@@ -357,7 +369,7 @@ public class BoltNeo4jResultSetGettersTest {
 		assertEquals(0, resultSet.getInt("columnA"));
 		assertEquals(0, resultSet.getInt(2));
 	}
-	
+
 	/*------------------------------*/
 	/*           getFloat           */
 	/*------------------------------*/
@@ -448,7 +460,7 @@ public class BoltNeo4jResultSetGettersTest {
 		assertEquals(0F, resultSet.getFloat("columnA"), 0);
 		assertEquals(0F, resultSet.getFloat(2), 0);
 	}
-	
+
 	/*------------------------------*/
 	/*            getShort          */
 	/*------------------------------*/
@@ -539,7 +551,7 @@ public class BoltNeo4jResultSetGettersTest {
 		assertEquals(0, resultSet.getShort("columnA"));
 		assertEquals(0, resultSet.getShort(2));
 	}
-	
+
 	/*------------------------------*/
 	/*           getDouble          */
 	/*------------------------------*/
@@ -629,7 +641,7 @@ public class BoltNeo4jResultSetGettersTest {
 		assertEquals(0D, resultSet.getDouble("columnA"), 0);
 		assertEquals(0D, resultSet.getDouble(2), 0);
 	}
-	
+
 	/*------------------------------*/
 	/*           getObject          */
 	/*------------------------------*/
@@ -1128,7 +1140,7 @@ public class BoltNeo4jResultSetGettersTest {
 		assertEquals(false, resultSet.getBoolean("columnA"));
 		assertEquals(false, resultSet.getBoolean(2));
 	}
-	
+
 	/*------------------------------*/
 	/*            getLong          */
 	/*------------------------------*/
@@ -1219,7 +1231,7 @@ public class BoltNeo4jResultSetGettersTest {
 		assertEquals(0, resultSet.getLong("columnA"));
 		assertEquals(0, resultSet.getLong(2));
 	}
-	
+
 	/*------------------------------*/
 	/*         getHoldability       */
 	/*------------------------------*/

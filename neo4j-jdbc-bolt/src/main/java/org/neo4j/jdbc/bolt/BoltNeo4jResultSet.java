@@ -234,6 +234,8 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 				result = this.convertRelationshipToString(value.asRelationship());
 			} else if (value instanceof PathValue) {
 				result = this.convertPathToString(value.asPath());
+			} else {
+				result = this.convertToJSONProperty(null, value);
 			}
 			return result;
 		}
