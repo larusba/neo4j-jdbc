@@ -75,6 +75,8 @@ public abstract class Neo4jConnectionImpl implements Neo4jConnection {
 		this.holdability = defaultHoldability;
 	}
 
+	Neo4jConnectionImpl() {}
+
 	public static boolean hasDebug(Properties properties) {
 		return "true".equalsIgnoreCase(properties.getProperty("debug", "false"));
 	}
@@ -229,7 +231,7 @@ public abstract class Neo4jConnectionImpl implements Neo4jConnection {
 	 */
 	protected void checkTransactionIsolation(int level) throws SQLException {
 		// @formatter:off
-		int[] invalid = {
+		Integer[] invalid = {
 			TRANSACTION_NONE,
 			TRANSACTION_READ_COMMITTED,
 			TRANSACTION_READ_UNCOMMITTED,
@@ -238,7 +240,7 @@ public abstract class Neo4jConnectionImpl implements Neo4jConnection {
 		};
 
 		if(!Arrays.asList(invalid).contains(level)){
-			throw new SQLException();
+			throw new SQLException("Unsupported isolation level");
 		}
 		// @formatter:on
 	}
