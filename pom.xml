@@ -83,7 +83,7 @@
 		<jmh.version>1.19</jmh.version>
 		<neo4j.java.driver.version>1.4.5</neo4j.java.driver.version>
 		<neo4j.version>3.3.0</neo4j.version>
-		<httpclient.version>4.5.3</httpclient.version>
+		<httpclient.version>4.5.13</httpclient.version>
 		<jackson.version>2.9.2</jackson.version>
 
 		<!-- Plugin version -->
