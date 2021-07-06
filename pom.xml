@@ -8,7 +8,7 @@
 	<!-- =========== -->
 	<groupId>org.neo4j</groupId>
 	<artifactId>neo4j-jdbc-parent</artifactId>
-	<version>3.2.0</version>
+	<version>4.0.1</version>
 	<packaging>pom</packaging>
 	<name>Neo4j JDBC Driver Parent</name>
 	<description>Parent POM for Neo4j JDBC Driver and Modules</description>
@@ -75,23 +75,23 @@
 	<properties>
 		<!-- General -->
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<java.version>1.7</java.version>
+		<java.version>11</java.version>
 
 		<!-- Deps version -->
-		<powermock.version>1.7.3</powermock.version>
-		<junit.version>4.12</junit.version>
+		<powermock.version>2.0.9</powermock.version>
+		<junit.version>4.13.2</junit.version>
 		<jmh.version>1.19</jmh.version>
-		<neo4j.java.driver.version>1.4.5</neo4j.java.driver.version>
-		<neo4j.version>3.3.0</neo4j.version>
-		<httpclient.version>4.5.3</httpclient.version>
-		<jackson.version>2.9.2</jackson.version>
+		<neo4j.java.driver.version>4.3.1</neo4j.java.driver.version>
+		<neo4j.version>4.0.0</neo4j.version>
+		<httpclient.version>4.5.13</httpclient.version>
+		<jackson.version>2.11.0</jackson.version>
+		<testcontainers.version>1.15.1</testcontainers.version>
 
 		<!-- Plugin version -->
 		<maven.plugin.compiler>3.6.1</maven.plugin.compiler>
 		<maven.plugin.resources>2.7</maven.plugin.resources>
-		<maven.plugin.nexus-staging>1.6.8</maven.plugin.nexus-staging>
 		<maven.plugin.shade>3.0.0</maven.plugin.shade>
-		<maven.plugin.javadoc>2.9.1</maven.plugin.javadoc>
+		<maven.plugin.javadoc>3.2.0</maven.plugin.javadoc>
 		<maven.plugin.source>3.0.1</maven.plugin.source>
 		<maven.plugin.gpg>1.4</maven.plugin.gpg>
 		<maven.plugin.surefire>2.20</maven.plugin.surefire>
@@ -151,6 +151,11 @@
 				<artifactId>neo4j-harness</artifactId>
 				<version>${neo4j.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>org.neo4j.community</groupId>
+				<artifactId>it-test-support</artifactId>
+				<version>${neo4j.version}</version>
+			</dependency>
 
 			<!-- Deps to test framework -->
 			<dependency>
@@ -165,7 +170,7 @@
 			</dependency>
 			<dependency>
 				<groupId>org.powermock</groupId>
-				<artifactId>powermock-api-mockito</artifactId>
+				<artifactId>powermock-api-mockito2</artifactId>
 				<version>${powermock.version}</version>
 			</dependency>
 
@@ -179,6 +184,18 @@
 				<groupId>org.openjdk.jmh</groupId>
 				<artifactId>jmh-generator-annprocess</artifactId>
 				<version>${jmh.version}</version>
+			</dependency>
+
+			<!-- Deps for Testcontainers -->
+			<dependency>
+				<groupId>org.testcontainers</groupId>
+				<artifactId>testcontainers</artifactId>
+				<version>${testcontainers.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.testcontainers</groupId>
+				<artifactId>neo4j</artifactId>
+				<version>${testcontainers.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -194,7 +211,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.powermock</groupId>
-			<artifactId>powermock-api-mockito</artifactId>
+			<artifactId>powermock-api-mockito2</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -213,6 +230,11 @@
 			<artifactId>neo4j-harness</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.neo4j.community</groupId>
+			<artifactId>it-test-support</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<!-- ========= -->
@@ -227,17 +249,7 @@
 			</resource>
 		</resources>
 		<plugins>
-			<plugin>
-				<groupId>org.sonatype.plugins</groupId>
-				<artifactId>nexus-staging-maven-plugin</artifactId>
-				<version>${maven.plugin.nexus-staging}</version>
-				<extensions>true</extensions>
-				<configuration>
-					<serverId>ossrh</serverId>
-					<nexusUrl>https://oss.sonatype.org/</nexusUrl>
-					<autoReleaseAfterClose>true</autoReleaseAfterClose>
-				</configuration>
-			</plugin>
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
@@ -245,6 +257,7 @@
 				<configuration>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
+					<forceJavacCompilerUse>true</forceJavacCompilerUse>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -272,6 +285,9 @@
 						</goals>
 					</execution>
 				</executions>
+				<configuration>
+					<source>8</source>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
@@ -317,31 +333,7 @@
 							</execution>
 						</executions>
 					</plugin>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-gpg-plugin</artifactId>
-						<version>${maven.plugin.gpg}</version>
-						<executions>
-							<execution>
-								<id>sign-artifacts</id>
-								<phase>verify</phase>
-								<goals>
-									<goal>sign</goal>
-								</goals>
-							</execution>
-						</executions>
-					</plugin>
-					<plugin>
-						<groupId>org.sonatype.plugins</groupId>
-						<artifactId>nexus-staging-maven-plugin</artifactId>
-						<version>${maven.plugin.nexus-staging}</version>
-						<extensions>true</extensions>
-						<configuration>
-							<serverId>ossrh</serverId>
-							<nexusUrl>https://oss.sonatype.org/</nexusUrl>
-							<autoReleaseAfterClose>true</autoReleaseAfterClose>
-						</configuration>
-					</plugin>
+
 				</plugins>
 			</build>
 		</profile>
@@ -445,16 +437,6 @@
 		</profile>
 	</profiles>
 
-	<!-- =========================== -->
-	<!-- = Distribution management = -->
-	<!-- =========================== -->
-	<distributionManagement>
-		<snapshotRepository>
-			<id>ossrh</id>
-			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
-		</snapshotRepository>
-	</distributionManagement>
-
 	<!-- ================ -->
 	<!-- = Repositories = -->
 	<!-- ================ -->
@@ -469,6 +451,17 @@
 			</snapshots>
 			<releases>
 				<enabled>false</enabled>
+			</releases>
+		</repository>
+		<repository>
+			<id>neo4j-v4-repository</id>
+			<name>Neo4j Maven 2 snapshot repository</name>
+			<url>https://neo4j.bintray.com/community</url>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+			<releases>
+				<enabled>true</enabled>
 			</releases>
 		</repository>
 	</repositories>

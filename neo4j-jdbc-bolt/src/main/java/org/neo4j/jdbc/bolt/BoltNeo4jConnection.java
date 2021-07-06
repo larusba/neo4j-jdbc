@@ -19,10 +19,11 @@
  */
 package org.neo4j.jdbc.bolt;
 
-import org.neo4j.driver.v1.Session;
-import org.neo4j.driver.v1.Transaction;
+import org.neo4j.driver.Session;
+import org.neo4j.driver.Transaction;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 
 /**
  * @author Gianmarco Laggia @ Larus B.A.
@@ -43,5 +44,8 @@ public interface BoltNeo4jConnection extends Connection {
 	 * @return the internal session
 	 */
 	Session getSession();
+
+	void doCommit() throws SQLException;
+	void doRollback() throws SQLException;
 
 }

@@ -82,22 +82,13 @@ public abstract class Neo4jPreparedStatement extends Neo4jStatement implements P
 	/*----------------------------------------*/
 
 	/**
-	 * Check if the connection is closed or not.
-	 * If it is, we throw an exception.
-	 */
-	protected void checkClosed() throws SQLException {
-		if (this.isClosed()) {
-			throw new SQLException("Statement already closed");
-		}
-	}
-
-	/**
 	 * Check if the given parameter index is not out of bound.
 	 * If its is we throw an exception.
 	 *
 	 * @param parameterIndex The index parameter to check
+	 * @throws SQLException in case of the input index does not exists
 	 */
-	private void checkParamsNumber(int parameterIndex) throws SQLException {
+	protected void checkParamsNumber(int parameterIndex) throws SQLException {
 		if (parameterIndex > this.parametersNumber) {
 			throw new SQLException("ParameterIndex does not correspond to a parameter marker in the SQL statement");
 		}
@@ -108,6 +99,7 @@ public abstract class Neo4jPreparedStatement extends Neo4jStatement implements P
 	 * If it's not we throw an exception.
 	 *
 	 * @param obj The object to check
+	 * @throws SQLException in case the object type is not supported
 	 */
 	private void checkValidObject(Object obj) throws SQLException {
 		// TODO: this may belong into org.neo4j.driver.v1.Values
@@ -142,7 +134,7 @@ public abstract class Neo4jPreparedStatement extends Neo4jStatement implements P
 	 * @param index The index/key of the parameter
 	 * @param obj   The value of the parameter
 	 */
-	private void insertParameter(int index, Object obj) {
+	protected void insertParameter(int index, Object obj) {
 		this.parameters.put(Integer.toString(index), obj);
 	}
 
@@ -320,10 +312,6 @@ public abstract class Neo4jPreparedStatement extends Neo4jStatement implements P
 		throw ExceptionBuilder.buildUnsupportedOperationException();
 	}
 
-	@Override public void setArray(int parameterIndex, java.sql.Array x) throws SQLException {
-		throw ExceptionBuilder.buildUnsupportedOperationException();
-	}
-
 	@Override public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
 		throw ExceptionBuilder.buildUnsupportedOperationException();
 	}
@@ -337,7 +325,7 @@ public abstract class Neo4jPreparedStatement extends Neo4jStatement implements P
 	}
 
 	@Override public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
-		throw ExceptionBuilder.buildUnsupportedOperationException();
+		setNull(parameterIndex, sqlType); // simply store a null
 	}
 
 	@Override public void setURL(int parameterIndex, URL x) throws SQLException {
@@ -418,10 +406,6 @@ public abstract class Neo4jPreparedStatement extends Neo4jStatement implements P
 
 	@Override public void setNClob(int parameterIndex, Reader reader) throws SQLException {
 		throw ExceptionBuilder.buildUnsupportedOperationException();
-	}
-
-	@Override public void addBatch(String sql) throws SQLException {
-		throw new SQLException("Method addBatch(String sql) cannot be called on PreparedStatement");
 	}
 
 }

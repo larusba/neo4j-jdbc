@@ -10,7 +10,7 @@
     <parent>
         <groupId>org.neo4j</groupId>
         <artifactId>neo4j-jdbc-parent</artifactId>
-        <version>3.2.0</version>
+        <version>4.0.1</version>
     </parent>
 
     <!-- =========== -->
@@ -34,6 +34,16 @@
             <artifactId>neo4j-jdbc</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.neo4j.community</groupId>
+            <artifactId>it-test-support</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
         <!-- Performance tests dependencies -->
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
@@ -43,6 +53,17 @@
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-generator-annprocess</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>neo4j</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

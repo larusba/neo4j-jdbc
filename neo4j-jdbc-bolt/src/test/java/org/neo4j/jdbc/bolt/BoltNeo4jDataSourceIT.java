@@ -23,6 +23,8 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.neo4j.harness.junit.rule.Neo4jRule;
+import org.neo4j.jdbc.bolt.utils.JdbcConnectionTestUtils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -41,7 +43,7 @@ public class BoltNeo4jDataSourceIT {
 	public ExpectedException expectedEx = ExpectedException.none();
 
 	@ClassRule
-	public static Neo4jBoltRule neo4j = new Neo4jBoltRule();
+	public static Neo4jRule neo4j = new Neo4jRule();
 
 	/*------------------------------*/
 	/*        getConnection         */
@@ -50,13 +52,19 @@ public class BoltNeo4jDataSourceIT {
 	@Test public void getConnectionShouldWork() throws SQLException {
 
 		BoltNeo4jDataSource boltNeo4jDataSource = new BoltNeo4jDataSource();
-		boltNeo4jDataSource.setServerName(neo4j.getHost());
-		boltNeo4jDataSource.setPortNumber(neo4j.getPort());
+		boltNeo4jDataSource.setServerName(neo4j.boltURI().getHost());
+		boltNeo4jDataSource.setPortNumber(neo4j.boltURI().getPort());
+		boltNeo4jDataSource.setIsSsl(JdbcConnectionTestUtils.SSL_ENABLED);
+		boltNeo4jDataSource.setUser(JdbcConnectionTestUtils.USERNAME);
+		boltNeo4jDataSource.setPassword(JdbcConnectionTestUtils.PASSWORD);
 
 		Connection connection = boltNeo4jDataSource.getConnection();
 		assertNotNull(connection);
 
 		Statement statement = connection.createStatement();
 		assertTrue(statement.execute("RETURN 1"));
+
+		statement.close();
+		JdbcConnectionTestUtils.closeConnection(connection);
 	}
 }

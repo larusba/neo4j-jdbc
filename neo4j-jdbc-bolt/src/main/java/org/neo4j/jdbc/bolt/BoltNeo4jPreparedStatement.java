@@ -19,9 +19,8 @@
  */
 package org.neo4j.jdbc.bolt;
 
-import org.neo4j.driver.v1.StatementResult;
-import org.neo4j.driver.v1.Transaction;
-import org.neo4j.driver.v1.summary.SummaryCounters;
+import org.neo4j.driver.Result;
+import org.neo4j.driver.summary.SummaryCounters;
 import org.neo4j.jdbc.Loggable;
 import org.neo4j.jdbc.Neo4jParameterMetaData;
 import org.neo4j.jdbc.Neo4jPreparedStatement;
@@ -30,13 +29,17 @@ import org.neo4j.jdbc.bolt.impl.BoltNeo4jConnectionImpl;
 import org.neo4j.jdbc.utils.Neo4jInvocationHandler;
 
 import java.lang.reflect.Proxy;
-import java.sql.BatchUpdateException;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
+import java.util.Calendar;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Arrays.copyOf;
+import static org.neo4j.jdbc.bolt.BoltNeo4jUtils.executeInTx;
 
 /**
  * @author AgileLARUS
@@ -57,69 +60,44 @@ public class BoltNeo4jPreparedStatement extends Neo4jPreparedStatement implement
 	}
 
 	@Override public ResultSet executeQuery() throws SQLException {
-		StatementResult result = executeInternal();
-
-		this.currentResultSet = BoltNeo4jResultSet.newInstance(this.hasDebug(), this, result, this.resultSetParams);
-		this.currentUpdateCount = -1;
-		return currentResultSet;
+		return executeInternal((result) -> {
+			this.currentResultSet = BoltNeo4jResultSet.newInstance(this.hasDebug(), this, result, this.resultSetParams);
+			this.currentUpdateCount = -1;
+			return currentResultSet;
+		});
 	}
 
 	@Override public int executeUpdate() throws SQLException {
-		StatementResult result = executeInternal();
-
-		SummaryCounters stats = result.consume().counters();
-		this.currentUpdateCount = stats.nodesCreated() + stats.nodesDeleted() + stats.relationshipsCreated() + stats.relationshipsDeleted();
-		this.currentResultSet = null;
-		return this.currentUpdateCount;
+		return executeInternal((result) -> {
+			SummaryCounters stats = result.consume().counters();
+			this.currentUpdateCount = BoltNeo4jUtils.calculateUpdateCount(stats);
+			this.currentResultSet = null;
+			return this.currentUpdateCount;
+		});
 	}
 
 	@Override public boolean execute() throws SQLException {
-		StatementResult result = executeInternal();
-
-		boolean hasResultSet = hasResultSet(result);
-		if (hasResultSet) {
-			this.currentResultSet = BoltNeo4jResultSet.newInstance(this.hasDebug(), this, result, this.resultSetParams);
-			this.currentUpdateCount = -1;
-		} else {
-			this.currentResultSet = null;
-			try {
+		return executeInternal((result) -> {
+			boolean hasResultSet = hasResultSet();
+			if (hasResultSet) {
+				this.currentResultSet = BoltNeo4jResultSet.newInstance(this.hasDebug(), this, result, this.resultSetParams);
+				this.currentUpdateCount = -1;
+			} else {
+				this.currentResultSet = null;
 				SummaryCounters stats = result.consume().counters();
-				this.currentUpdateCount = stats.nodesCreated() + stats.nodesDeleted() + stats.relationshipsCreated() + stats.relationshipsDeleted();
-			} catch (Exception e) {
-				throw new SQLException(e);
+				this.currentUpdateCount = BoltNeo4jUtils.calculateUpdateCount(stats);
 			}
-		}
-		return hasResultSet;
+			return hasResultSet;
+		});
 	}
 
-	private StatementResult executeInternal() throws SQLException {
+	private <T> T executeInternal(Function<Result, T> body) throws SQLException {
 		this.checkClosed();
-
-		StatementResult result;
-		if (this.getConnection().getAutoCommit()) {
-			try (Transaction t = ((BoltNeo4jConnection) this.getConnection()).getSession().beginTransaction()) {
-				result = t.run(this.statement, this.parameters);
-				t.success();
-			} catch (Exception e) {
-				throw new SQLException(e.getMessage(), e);
-			}
-		} else {
-			try {
-				result = ((BoltNeo4jConnection) this.getConnection()).getTransaction().run(this.statement, this.parameters);
-			} catch (Exception e) {
-				throw new SQLException(e.getMessage(), e);
-			}
-		}
-
-		return result;
+		return executeInTx((BoltNeo4jConnection) this.connection, this.statement, this.parameters, body);
 	}
 
-	private boolean hasResultSet(StatementResult result) {
-		try {
-			return result != null && result.hasNext();
-		} catch (Exception e) {
-			return false;
-		}
+	private boolean hasResultSet() {
+		return this.statement != null && this.statement.toLowerCase().contains("return");
 	}
 
 	@Override public Neo4jParameterMetaData getParameterMetaData() throws SQLException {
@@ -138,23 +116,68 @@ public class BoltNeo4jPreparedStatement extends Neo4jPreparedStatement implement
 	@Override public int[] executeBatch() throws SQLException {
 		this.checkClosed();
 		int[] result = new int[0];
-
 		try {
+			BoltNeo4jConnection connection = (BoltNeo4jConnection) this.connection;
 			for (Map<String, Object> parameter : this.batchParameters) {
-				StatementResult res;
-				if (this.connection.getAutoCommit()) {
-					res = ((BoltNeo4jConnection) this.connection).getSession().run(this.statement, parameter);
-				} else {
-					res = ((BoltNeo4jConnection) this.connection).getTransaction().run(this.statement, parameter);
-				}
-				SummaryCounters count = res.consume().counters();
+				int count = executeInTx(connection, this.statement, parameter, (statementResult) -> {
+					SummaryCounters counters = statementResult.consume().counters();
+					return counters.nodesCreated() + counters.nodesDeleted();
+				});
 				result = copyOf(result, result.length + 1);
-				result[result.length - 1] = count.nodesCreated() + count.nodesDeleted();
+				result[result.length - 1] = count;
 			}
 		} catch (Exception e) {
 			throw new BatchUpdateException(result, e);
 		}
-
 		return result;
+	}
+
+	/*-------------------*/
+	/*   setParameter    */
+	/*-------------------*/
+
+	protected void setTemporal(int parameterIndex, long epoch, ZoneId zone, Function<ZonedDateTime, Temporal> extractTemporal) throws SQLException {
+		checkClosed();
+		checkParamsNumber(parameterIndex);
+
+		ZonedDateTime zdt = Instant.ofEpochMilli(epoch).atZone(zone);
+
+		insertParameter(parameterIndex, extractTemporal.apply(zdt));
+	}
+
+	@Override
+	public void setDate(int parameterIndex, Date x) throws SQLException {
+		setTemporal(parameterIndex, x.getTime(),ZoneId.systemDefault(), (zdt)-> zdt.toLocalDate());
+	}
+
+	@Override
+	public void setTime(int parameterIndex, Time x) throws SQLException {
+		setTemporal(parameterIndex, x.getTime(),ZoneId.systemDefault(), (zdt)-> zdt.toLocalTime());
+	}
+
+	@Override
+	public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
+		setTemporal(parameterIndex, x.getTime(),ZoneId.systemDefault(), (zdt)-> zdt.toLocalDateTime());
+	}
+
+	@Override
+	public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
+		setTemporal(parameterIndex, x.getTime(),cal.getTimeZone().toZoneId(), (zdt)-> zdt);
+	}
+
+	@Override
+	public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
+		setTemporal(parameterIndex, x.getTime(),cal.getTimeZone().toZoneId(), (zdt)-> zdt);
+	}
+
+	@Override
+	public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
+		setTemporal(parameterIndex, x.getTime(),cal.getTimeZone().toZoneId(), (zdt)-> zdt.toOffsetDateTime().toOffsetTime());
+	}
+
+	@Override
+	public void setArray(int parameterIndex, Array x) throws SQLException {
+		checkClosed();
+		insertParameter(parameterIndex, x.getArray());
 	}
 }

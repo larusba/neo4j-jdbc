@@ -27,7 +27,6 @@ import org.neo4j.jdbc.utils.Neo4jInvocationHandler;
 import java.lang.reflect.Proxy;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 
 /**
@@ -165,7 +164,7 @@ public class ListNeo4jResultSet extends Neo4jResultSet {
 	}
 
 	@Override public Neo4jResultSetMetaData getMetaData() throws SQLException {
-		return null;
+		return new ListNeo4jResultSetMetaData(this.keys);
 	}
 
 	@Override public Object getObject(int columnIndex) throws SQLException {

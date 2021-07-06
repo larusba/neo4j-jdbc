@@ -22,17 +22,33 @@ package org.neo4j.jdbc.http.driver;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.Header;
+import org.apache.http.HttpException;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.HttpResponse;
 import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.AuthState;
+import org.apache.http.auth.Credentials;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.methods.*;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.methods.RequestBuilder;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.protocol.HttpContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,9 +56,17 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toList;
+import static org.neo4j.jdbc.Neo4jDatabaseMetaData.GET_DBMS_FUNCTIONS;
 
 /**
  * Execute cypher queries.
@@ -77,14 +101,38 @@ public class CypherExecutor {
 	private String currentTransactionUrl;
 
 	/**
+	 * Name of the database (default: neo4j)
+	 */
+	private final String databaseName;
+
+	/**
 	 * Jackson mapper object.
 	 */
 	private static final ObjectMapper mapper = new ObjectMapper();
 
-	private static final String DB_DATA_TRANSACTION = "/db/data/transaction";
+	private static final String DB_DATA_TRANSACTION_TEMPLATE = "/db/%s/tx";
+
+	private static final Logger LOGGER = Logger.getLogger(CypherExecutor.class.getCanonicalName());
 
 	static {
 		mapper.configure(DeserializationFeature.USE_LONG_FOR_INTS, true);
+	}
+
+	private class PreemptiveAuthInterceptor implements HttpRequestInterceptor {
+		public void process(final HttpRequest request, final HttpContext context) throws HttpException {
+			AuthState authState = (AuthState) context.getAttribute(HttpClientContext.TARGET_AUTH_STATE);
+
+			// If no auth scheme available yet, try to initialize it preemptively
+			if (authState.getAuthScheme() == null) {
+				CredentialsProvider credsProvider = (CredentialsProvider) context.getAttribute(HttpClientContext.CREDS_PROVIDER);
+				HttpHost targetHost = (HttpHost) context.getAttribute(HttpClientContext.HTTP_TARGET_HOST);
+				Credentials creds = credsProvider.getCredentials(new AuthScope(targetHost.getHostName(), targetHost.getPort()));
+				if (creds == null) {
+					throw new HttpException("No credentials for preemptive authentication");
+				}
+				authState.update(new BasicScheme(), creds);
+			}
+		}
 	}
 
 	/**
@@ -102,31 +150,63 @@ public class CypherExecutor {
 		// Create the http client builder
 		HttpClientBuilder builder = HttpClients.custom();
 
-		// Adding authentication to the http client if needed
-		CredentialsProvider credentialsProvider = getCredentialsProvider(host, port, properties);
-		if (credentialsProvider != null)
-			builder.setDefaultCredentialsProvider(credentialsProvider);
-
 		// Setting user-agent
 		String userAgent = properties.getProperty("useragent");
-		builder.setUserAgent("Neo4j JDBC Driver" + (userAgent != null ? " via "+userAgent : ""));
+		builder.setUserAgent(getUserAgent(userAgent));
+
+		// Adding authentication to the http client if needed
+		try {
+			if (isAuthenticationRequired(host, port, secure, properties)) {
+				CredentialsProvider credentialsProvider = getCredentialsProvider(host, port, properties);
+				if (credentialsProvider == null) {
+					throw new SQLException("Authentication required");
+				}
+				builder.setDefaultCredentialsProvider(credentialsProvider);
+				builder.addInterceptorFirst(new PreemptiveAuthInterceptor());
+			}
+		} catch (SQLException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new SQLException(e.getMessage());
+		}
 		// Create the http client
 		this.http = builder.build();
 
 		// Create the url endpoint
-		this.transactionUrl = createTransactionUrl(host, port, this.secure);
+		this.databaseName = String.valueOf(properties.getOrDefault("database", "neo4j"));
+		this.transactionUrl = createTransactionUrl(this.databaseName, host, port, this.secure);
 
 		// Setting autocommit
 		this.setAutoCommit(Boolean.valueOf(properties.getProperty("autoCommit", "true")));
 	}
 
-	private String createTransactionUrl(String host, Integer port, Boolean secure) throws SQLException {
+	public String getUserAgent(String userAgent) {
+		return "Neo4j JDBC Driver" + (userAgent != null ? " via "+userAgent : "");
+	}
+
+	public boolean isAuthenticationRequired(String host, Integer port, Boolean secure, Properties properties) throws Exception {
+		HttpUriRequest request = RequestBuilder.head()
+				.setUri(new URL(secure ? "https" : "http", host, port, "/db/data/").toURI())
+				.build();
+		try (CloseableHttpClient minimalHttp = HttpClients
+				.custom()
+				.disableAutomaticRetries()
+				.setUserAgent(getUserAgent(properties.getProperty("useragent")))
+				.build()) {
+			HttpResponse response = minimalHttp.execute(request);
+			return response.getStatusLine().getStatusCode() == 401;
+		}
+	}
+
+	private String createTransactionUrl(String databaseName, String host, Integer port, Boolean secure) throws SQLException {
+		String transactionPath = transactionPath(databaseName);
 		try {
-			if(secure)
-				return new URL("https", host, port, DB_DATA_TRANSACTION).toString();
-			else
-				return new URL("http", host, port, DB_DATA_TRANSACTION).toString();
-		} catch (MalformedURLException e) {
+			if (secure) {
+				return new URL("https", host, port, transactionPath).toString();
+			}
+			return new URL("http", host, port, transactionPath).toString();
+		}
+		catch (MalformedURLException e) {
 			throw new SQLException("Invalid server URL", e);
 		}
 	}
@@ -159,6 +239,29 @@ public class CypherExecutor {
 
 		// Make the request
 		return this.executeHttpRequest(request);
+	}
+
+	public List<String> callDbmsFunctions() {
+		try {
+			Neo4jResponse response = this.executeQuery(new Neo4jStatement(GET_DBMS_FUNCTIONS, Collections.emptyMap(), false));
+			if (response.hasErrors()) {
+				return Collections.emptyList();
+			}
+			return response.getResults()
+					.stream()
+					.flatMap(result ->
+							result.getRows()
+									.stream()
+									.map(rows -> {
+										Iterable<?> rowData = (Iterable<?>) rows.get("row");
+										return (String) rowData.iterator().next();
+									}))
+					.distinct()
+					.collect(Collectors.toList());
+		} catch (SQLException e) {
+			LOGGER.warning(String.format("Could not retrieve DBMS functions:%n%s", e));
+			return Collections.emptyList();
+		}
 	}
 
 	/**
@@ -250,7 +353,8 @@ public class CypherExecutor {
 		String result = null;
 
 		// Prepare the headers query
-		HttpGet request = new HttpGet(this.transactionUrl.replace(DB_DATA_TRANSACTION, "/db/manage/server/version"));
+		HttpGet request = new HttpGet(this.transactionUrl
+				.replace(transactionPath(this.databaseName), "/db/data"));
 
 		// Adding default headers to the request
 		for (Header header : this.getDefaultHeaders()) {
@@ -261,8 +365,9 @@ public class CypherExecutor {
 		try (CloseableHttpResponse response = http.execute(request)) {
 			try (InputStream is = response.getEntity().getContent()) {
 				Map body = mapper.readValue(is, Map.class);
-				if (body.get("version") != null) {
-					result = (String) body.get("version");
+				final String neo4j_version = (String) body.get("neo4j_version");
+				if (neo4j_version != null) {
+					result = neo4j_version;
 				}
 			}
 		} catch (Exception e) {
@@ -312,6 +417,10 @@ public class CypherExecutor {
 	 */
 	public Integer getOpenTransactionId() {
 		return getTransactionId(this.currentTransactionUrl);
+	}
+
+	private String transactionPath(String databaseName) {
+		return String.format(DB_DATA_TRANSACTION_TEMPLATE, databaseName);
 	}
 
 	/**

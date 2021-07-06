@@ -21,8 +21,6 @@
  */
 package org.neo4j.jdbc.example.mybatis;
 
-import javax.sql.DataSource;
-
 import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.Configuration;
@@ -34,6 +32,9 @@ import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.jdbc.example.mybatis.mapper.ActorMapper;
 import org.neo4j.jdbc.example.mybatis.util.ConnectionFactory;
+
+import javax.sql.DataSource;
+import java.util.Properties;
 
 /**
  * @author AgileLARUS
@@ -47,15 +48,18 @@ public class MybatisTestUtil {
 	
 	protected static void populateGraphDB(GraphDatabaseService graphDatabaseService) {
 		try (Transaction tx = graphDatabaseService.beginTx()) { 
-			Node node = graphDatabaseService.createNode(TestLabels.Person);
+			Node node = tx.createNode(TestLabels.Person);
 			node.setProperty("name", "Dave Chappelle");
 			node.setProperty("born", 1973);
-			tx.success();
+			tx.commit();
 		}
 	}
 
 	protected void buildMybatisConfiguration(String protocol, String host, int port) {
-		DataSource dataSource = new UnpooledDataSource("org.neo4j.jdbc.Driver", "jdbc:neo4j:" + protocol + "://" + host + ":" + port + "?nossl", null);
+		Properties prop = new Properties();
+		prop.setProperty("user","user");
+		prop.setProperty("password","password");
+		DataSource dataSource = new UnpooledDataSource("org.neo4j.jdbc.Driver", "jdbc:neo4j:" + protocol + "://" + host + ":" + port + "?nossl", prop);
 		TransactionFactory transactionFactory = new JdbcTransactionFactory();
 		Environment environment = new Environment("development", transactionFactory, dataSource);
 

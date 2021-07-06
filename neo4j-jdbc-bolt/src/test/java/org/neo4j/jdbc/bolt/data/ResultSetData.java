@@ -27,16 +27,17 @@ import org.neo4j.driver.internal.spi.Connection;
 import org.neo4j.driver.internal.value.FloatValue;
 import org.neo4j.driver.internal.value.IntegerValue;
 import org.neo4j.driver.internal.value.StringValue;
-import org.neo4j.driver.v1.Record;
-import org.neo4j.driver.v1.StatementResult;
-import org.neo4j.driver.v1.Value;
-import org.neo4j.driver.v1.Values;
-import org.neo4j.driver.v1.types.Entity;
-import org.neo4j.driver.v1.types.Node;
-import org.neo4j.driver.v1.types.Path;
+import org.neo4j.driver.Record;
+import org.neo4j.driver.Result;
+import org.neo4j.driver.Value;
+import org.neo4j.driver.Values;
+import org.neo4j.driver.types.Entity;
+import org.neo4j.driver.types.Node;
+import org.neo4j.driver.types.Path;
+import org.neo4j.driver.types.Relationship;
 
-import java.lang.reflect.Method;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.mockito.Mockito.mock;
@@ -64,14 +65,14 @@ public class ResultSetData {
 	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS           = KEYS_RECORD_LIST_ONE_ELEMENT;
 	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_DIFF      = new String[] { "columnA", "columnB", "columnC" };
 	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_MIXED     = new String[] { "columnInt", "columnString", "columnFloat", "columnShort", "columnDouble",
-			"columnBoolean", "columnLong", "columnNull" };
+			"columnBoolean", "columnLong", "columnNull", "columnMap" };
 	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_NODES     = new String[] { "node" };
 	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_PATHS     = new String[] { "path" };
 	public static String[] KEYS_RECORD_LIST_MORE_ELEMENTS_RELATIONS = new String[] { "relation" };
 	public static String[] KEYS_RECORD_LIST_WITH_ARRAY              = new String[] { "array" };
 
-	private static Method runResponseCollectorMethod;
-	private static Method pullAllResponseCollectorMethod;
+	//private static Method runResponseCollectorMethod;
+	//private static Method pullAllResponseCollectorMethod;
 
 	private static Path path1;
 	private static Path path2;
@@ -90,8 +91,13 @@ public class ResultSetData {
 
 		RECORD_LIST_MORE_ELEMENTS_MIXED = new LinkedList<>();
 
-		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 1, "value1", 0.1f, (short) 1, 02.29D, true, 2L, null });
-		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 2, "value2", 0.2f, (short) 2, 20.16D, false, 6L, null });
+		Map<String, Object> map = new HashMap<>();
+		map.put("key", null);
+
+		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 1, "value1", 0.1f, (short) 1, 02.29D, true, 2L, null, map });
+		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 2, "value2", 0.2f, (short) 2, 20.16D, false, 6L, null, map });
+		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 3, "1.23", 0.3f, (short) 3, 12.34D, true, 4L, null, map });
+		RECORD_LIST_MORE_ELEMENTS_MIXED.add(new Object[] { 4, "22", 0.4f, (short) 4, 12.34D, false, 4L, null, map });
 
 		RECORD_LIST_MORE_ELEMENTS_NODES = new LinkedList<>();
 
@@ -113,7 +119,7 @@ public class ResultSetData {
 			}
 		}, new HashMap<String, Value>() {
 			{
-				this.put("property", new FloatValue(1.6f));
+				this.put("property", new FloatValue(1.6));
 			}
 		}) });
 
@@ -128,7 +134,7 @@ public class ResultSetData {
 
 		RECORD_LIST_MORE_ELEMENTS_RELATIONS.add(new Object[] { new InternalRelationship(2, 3, 4, "type2", new HashMap<String, Value>() {
 			{
-				this.put("property", new FloatValue(2.6f));
+				this.put("property", new FloatValue(2.6));
 			}
 		}) });
 
@@ -173,7 +179,7 @@ public class ResultSetData {
 			}
 		});
 
-		org.neo4j.driver.v1.types.Relationship rel1 = new InternalRelationship(3, 1, 2, "type", new HashMap<String, Value>() {
+		org.neo4j.driver.types.Relationship rel1 = new InternalRelationship(3, 1, 2, "type", new HashMap<String, Value>() {
 			{
 				this.put("relProperty", new StringValue("value3"));
 			}
@@ -216,13 +222,13 @@ public class ResultSetData {
 			}
 		});
 
-		org.neo4j.driver.v1.types.Relationship rel2 = new InternalRelationship(7, 4, 5, "type", new HashMap<String, Value>() {
+		Relationship rel2 = new InternalRelationship(7, 4, 5, "type", new HashMap<String, Value>() {
 			{
 				this.put("relProperty", new StringValue("value4"));
 			}
 		});
 
-		org.neo4j.driver.v1.types.Relationship rel3 = new InternalRelationship(8, 6, 5, "type", new HashMap<String, Value>() {
+		Relationship rel3 = new InternalRelationship(8, 6, 5, "type", new HashMap<String, Value>() {
 			{
 				this.put("relProperty", new StringValue("value5"));
 			}
@@ -242,29 +248,31 @@ public class ResultSetData {
 	 * open up some package scope method for public usage
 	 */
 	private static void fixPublicForInternalResultCursor() {
+/*
 		try {
-			runResponseCollectorMethod = InternalStatementResult.class.getDeclaredMethod("runResponseCollector");
+			runResponseCollectorMethod = InternalResult.class.getDeclaredMethod("runResponseCollector");
 			runResponseCollectorMethod.setAccessible(true);
-			pullAllResponseCollectorMethod = InternalStatementResult.class.getDeclaredMethod("pullAllResponseCollector");
+			pullAllResponseCollectorMethod = InternalResult.class.getDeclaredMethod("pullAllResponseCollector");
 			pullAllResponseCollectorMethod.setAccessible(true);
 		} catch (NoSuchMethodException e) {
 			throw new RuntimeException(e);
 		}
+*/
 	}
 
 	/**
-	 * hackish way to get a {@link InternalStatementResult}
+	 * hackish way to get a {@link InternalResult}
 	 *
 	 * @param keys
 	 * @param data
 	 * @return
 	 */
-	public static StatementResult buildResultCursor(String[] keys, final List<Object[]> data) {
+	public static Result buildResultCursor(String[] keys, final List<Object[]> data) {
 
 		try {
 			Connection connection = mock(Connection.class);
 
-			StatementResult cursor = mock(StatementResult.class);
+			Result cursor = mock(Result.class);
 			final List<String> columns = asList(keys);
 			when(cursor.keys()).thenReturn(columns);
 
@@ -287,8 +295,10 @@ public class ResultSetData {
 					return new InternalRecord(columns, Values.values(data.get(0)));
 				}
 			});
+
+			when (cursor.list()).thenReturn(data.stream().map(elem -> new InternalRecord(columns, Values.values(elem))).collect(Collectors.toList()));
 /*
-			InternalStatementResult cursor = new InternalStatementResult(connection, null);
+			InternalResult cursor = new InternalResult(connection, null);
 			StreamCollector responseCollector = (StreamCollector) runResponseCollectorMethod.invoke(cursor);
 			responseCollector.keys(keys);
 			responseCollector.done();

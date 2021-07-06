@@ -22,23 +22,27 @@
 
 package org.neo4j.jdbc;
 
+import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.Ignore;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.neo4j.harness.junit.rule.Neo4jRule;
+import org.neo4j.jdbc.bolt.BoltNeo4jConnection;
+import org.neo4j.jdbc.http.HttpNeo4jConnection;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.neo4j.harness.junit.Neo4jRule;
-import org.neo4j.jdbc.bolt.BoltNeo4jConnection;
-import org.neo4j.jdbc.bolt.impl.BoltNeo4jConnectionImpl;
-import org.neo4j.jdbc.http.HttpNeo4jConnection;
-
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DriverTestIT {
 
@@ -48,24 +52,28 @@ public class DriverTestIT {
 
 	@Test public void shouldReturnAHttpConnection() throws SQLException {
 		Driver driver = new Driver();
-		Connection connection = driver.connect("jdbc:neo4j:http://localhost:7474", new Properties());
+		Connection connection = driver.connect("jdbc:neo4j:http://localhost:" + neo4j.httpURI().getPort(), new Properties());
 		Assert.assertTrue(connection instanceof HttpNeo4jConnection);
 	}
 	@Test public void shouldReturnAHttpConnection2() throws SQLException {
 		Driver driver = new Driver();
-		Connection connection = driver.connect("jdbc:neo4j:http:localhost:7474", new Properties());
+		Connection connection = driver.connect("jdbc:neo4j:http:localhost:" + neo4j.httpURI().getPort(), new Properties());
 		Assert.assertTrue(connection instanceof HttpNeo4jConnection);
 	}
 
+	@Ignore
 	@Test public void shouldReturnAHttpsConnection() throws SQLException {
 		Driver driver = new Driver();
-		Connection connection = driver.connect("jdbc:neo4j:https://localhost", new Properties());
+		Connection connection = driver.connect("jdbc:neo4j:" + neo4j.httpsURI(), new Properties());
 		Assert.assertTrue(connection instanceof HttpNeo4jConnection);
 	}
 
 	@Test public void shouldReturnABoltConnection() throws Exception {
 		Driver driver = new Driver();
-		Connection connection = driver.connect("jdbc:neo4j:" + neo4j.boltURI() + "/?nossl", new Properties());
+		Properties prop = new Properties();
+		prop.setProperty("user","user");
+		prop.setProperty("password","password");
+		Connection connection = driver.connect("jdbc:neo4j:" + neo4j.boltURI() + "/?nossl", prop);
 		Assert.assertTrue(connection instanceof BoltNeo4jConnection);
 	}
 
@@ -89,7 +97,7 @@ public class DriverTestIT {
 		Assert.assertNull(connection);
 	}
 
-	@Test public void shouldCallTheNextDriverWhenNonNeo4jUrl() throws SQLException {
+	@Test public void shouldCallTheNextDriverWhenNonNeo4jUrl() throws Exception {
 		Driver driver = new Driver();
 		DriverManager.registerDriver(driver);
 		java.sql.Driver mysqlDriver = mock(java.sql.Driver.class);

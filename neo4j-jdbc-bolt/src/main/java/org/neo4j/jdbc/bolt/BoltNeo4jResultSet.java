@@ -19,39 +19,75 @@
  */
 package org.neo4j.jdbc.bolt;
 
+import org.neo4j.driver.Record;
+import org.neo4j.driver.Result;
+import org.neo4j.driver.Value;
+import org.neo4j.driver.exceptions.value.Uncoercible;
 import org.neo4j.driver.internal.types.InternalTypeSystem;
-import org.neo4j.driver.internal.value.*;
-import org.neo4j.driver.v1.Record;
-import org.neo4j.driver.v1.StatementResult;
-import org.neo4j.driver.v1.Value;
-import org.neo4j.driver.v1.exceptions.value.Uncoercible;
-import org.neo4j.driver.v1.types.Node;
-import org.neo4j.driver.v1.types.Path;
-import org.neo4j.driver.v1.types.Relationship;
-import org.neo4j.driver.v1.types.Type;
-import org.neo4j.driver.v1.util.Pair;
-import org.neo4j.jdbc.*;
+import org.neo4j.driver.internal.value.DateTimeValue;
+import org.neo4j.driver.internal.value.DateValue;
+import org.neo4j.driver.internal.value.DurationValue;
+import org.neo4j.driver.internal.value.IntegerValue;
+import org.neo4j.driver.internal.value.ListValue;
+import org.neo4j.driver.internal.value.LocalDateTimeValue;
+import org.neo4j.driver.internal.value.LocalTimeValue;
+import org.neo4j.driver.internal.value.ObjectValueAdapter;
+import org.neo4j.driver.internal.value.PointValue;
+import org.neo4j.driver.internal.value.StringValue;
+import org.neo4j.driver.internal.value.TimeValue;
+import org.neo4j.driver.types.IsoDuration;
+import org.neo4j.driver.types.Node;
+import org.neo4j.driver.types.Point;
+import org.neo4j.driver.types.Relationship;
+import org.neo4j.driver.types.Type;
+import org.neo4j.driver.util.Pair;
+import org.neo4j.jdbc.Neo4jArray;
+import org.neo4j.jdbc.Neo4jConnection;
+import org.neo4j.jdbc.Neo4jResultSet;
 import org.neo4j.jdbc.impl.ListArray;
+import org.neo4j.jdbc.utils.JSONUtils;
 import org.neo4j.jdbc.utils.Neo4jInvocationHandler;
+import org.neo4j.jdbc.utils.ObjectConverter;
 
 import java.lang.reflect.Proxy;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.*;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 
+import static org.neo4j.jdbc.utils.DataConverterUtils.convertObject;
+import static org.neo4j.jdbc.utils.DataConverterUtils.valueToDate;
+import static org.neo4j.jdbc.utils.DataConverterUtils.valueToTime;
+import static org.neo4j.jdbc.utils.DataConverterUtils.valueToTimestamp;
 /**
  * @author AgileLARUS
  * @since 3.0.0
  */
 public class BoltNeo4jResultSet extends Neo4jResultSet {
 
-	private StatementResult   iterator;
-	private ResultSetMetaData metaData;
-	private Record            current;
-	private List<String>      keys;
-	private List<Type>        classes;
+	private final Iterator<Record> iterator;
+	private final ResultSetMetaData metaData;
+	private Record current;
+	private final List<String> keys;
+	private final List<Type> classes;
 
 	private boolean flattened = false;
 
@@ -65,14 +101,16 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 	 * Default constructor for this class, if no params are given or if some params are missing it uses the defaults.
 	 *
 	 * @param statement The <code>Statement</code> this ResultSet comes from
-	 * @param iterator  The <code>StatementResult</code> of this set
+	 * @param iterator  The <code>Result</code> of this set
 	 * @param params    At most three, type, concurrency and holdability.
 	 *                  The defaults are <code>TYPE_FORWARD_ONLY</code>,
 	 *                  <code>CONCUR_READ_ONLY</code>,
 	 */
-	private BoltNeo4jResultSet(Statement statement, StatementResult iterator, int... params) {
+	private BoltNeo4jResultSet(Statement statement, Result iterator, int... params) {
 		super(statement, params);
-		this.iterator = iterator;
+		List<Record> recordList = iterator != null ? iterator.list() : Collections.emptyList();
+		Optional<Record> first = recordList.stream().findFirst();
+		this.iterator = iterator != null ? recordList.iterator() : null;
 
 		this.keys = new ArrayList<>();
 		this.classes = new ArrayList<>();
@@ -84,25 +122,23 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 			this.flatten = 0;
 		}
 
-		if (this.flatten != 0 && this.iterator != null && this.iterator.hasNext() && this.iterator.peek() != null && this.flatteningTypes(this.iterator)) {
+		if (this.flatten != 0 && this.flatteningTypes(first)) {
 			//Flatten the result
 			this.flattenResultSet();
 			this.flattened = true;
-		} else if (this.iterator != null) {
+		} else if (iterator != null) {
 			//Keys are exactly the ones returned from the iterator
-			this.keys = this.iterator.keys();
-			if (this.iterator.hasNext()) {
-				for (Value value : this.iterator.peek().values()) {
+			this.keys.addAll(iterator.keys());
+			first.ifPresent((record) -> {
+				for (Value value : record.values()) {
 					this.classes.add(value.type());
 				}
-			}
+			});
 		}
-
-
 		this.metaData = BoltNeo4jResultSetMetaData.newInstance(false, this.classes, this.keys);
 	}
 
-	public static ResultSet newInstance(boolean debug, Statement statement, StatementResult iterator, int... params) {
+	public static ResultSet newInstance(boolean debug, Statement statement, Result iterator, int... params) {
 		ResultSet rs = new BoltNeo4jResultSet(statement, iterator, params);
 		return (ResultSet) Proxy
 				.newProxyInstance(BoltNeo4jResultSet.class.getClassLoader(), new Class[] { ResultSet.class }, new Neo4jInvocationHandler(rs, debug));
@@ -163,17 +199,11 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 
 	}
 
-	private boolean flatteningTypes(StatementResult statementResult) {
-		boolean result = true;
-
-		for (Pair<String, Value> pair : statementResult.peek().fields()) {
-			if (!ACCEPTED_TYPES_FOR_FLATTENING.contains(pair.value().type().name())) {
-				result = false;
-				break;
-			}
-		}
-
-		return result;
+	public boolean flatteningTypes(Optional<Record> peek) {
+		return peek
+				.map(record -> record.fields().stream())
+				.map(pairStream -> pairStream.allMatch(pair -> ACCEPTED_TYPES_FOR_FLATTENING.contains(pair.value().type().name())))
+				.orElse(Boolean.FALSE);
 	}
 
 	@Override protected boolean innerNext() throws SQLException {
@@ -222,114 +252,14 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 				return value.asString();
 			}
 		} catch (Uncoercible e) {
-			String result = null;
-			if (value instanceof IntegerValue) {
-				result = ((IntegerValue) value).asLiteralString();
-			} else if (value instanceof FloatValue) {
-				result = ((FloatValue) value).asLiteralString();
-			} else if (value instanceof NodeValue) {
-				result = this.convertNodeToString(value.asNode());
-			} else if (value instanceof RelationshipValue) {
-				result = this.convertRelationshipToString(value.asRelationship());
-			} else if (value instanceof PathValue) {
-				result = this.convertPathToString(value.asPath());
-			}
-			return result;
+			return JSONUtils.writeValueAsString(value.asObject());
 		}
-	}
-
-	@SuppressWarnings("rawtypes") private String convertToJSONProperty(String key, Object value) {
-		String result = key == null ? "" : "\"" + key + "\":";
-
-		if (value instanceof String) {
-			result += "\"" + value + "\"";
-		} else if (value instanceof Number) {
-			result += value;
-		} else if (value instanceof StringValue) {
-			result += "\"" + ((StringValue) value).asString() + "\"";
-		} else if (value instanceof IntegerValue) {
-			result += Long.toString(((IntegerValue) value).asLong());
-		} else if (value instanceof FloatValue) {
-			result += Float.toString(((FloatValue) value).asFloat());
-		} else if (value instanceof BooleanValue) {
-			result += Boolean.toString(((BooleanValue) value).asBoolean());
-		} else if (value instanceof ListValue) {
-			result += "[";
-			result += this.convertToJSONProperty(null, ((ListValue) value).asList());
-			result += "]";
-		} else if (value instanceof List) {
-			String prefix = "";
-			result += "[";
-			for (Object obj : (List) value) {
-				result += prefix + this.convertToJSONProperty(null, obj);
-				prefix = ", ";
-			}
-			result += "]";
-		} else if (value instanceof Iterable) {
-			String prefix = "";
-			result += "[";
-			for (Object obj : (Iterable) value) {
-				result += prefix + this.convertToJSONProperty(null, obj);
-				prefix = ", ";
-			}
-			result += "]";
-		}
-
-		return result;
-	}
-
-	private String convertNodeToString(Node node) {
-		String result = "{";
-
-		result += this.convertToJSONProperty("id", node.id()) + ", ";
-
-		result += this.convertToJSONProperty("labels", node.labels()) + (node.size() > 0 ? ", " : "");
-
-		String prefix = "";
-		for (String key : node.keys()) {
-			result += prefix + this.convertToJSONProperty(key, node.get(key));
-			prefix = ", ";
-		}
-
-		return result + "}";
-	}
-
-	private String convertRelationshipToString(Relationship rel) {
-		String result = "{";
-
-		result += this.convertToJSONProperty("id", rel.id()) + ", ";
-
-		result += this.convertToJSONProperty("type", rel.type()) + ", ";
-
-		result += this.convertToJSONProperty("startId", rel.startNodeId()) + ", ";
-		result += this.convertToJSONProperty("endId", rel.endNodeId()) + (rel.size() > 0 ? ", " : "");
-
-		String prefix = "";
-		for (String key : rel.keys()) {
-			result += prefix + this.convertToJSONProperty(key, rel.get(key));
-			prefix = ", ";
-		}
-
-		return result + "}";
-	}
-
-	private String convertPathToString(Path path) {
-		String result = "[";
-
-		result += this.convertNodeToString(path.start());
-
-		for (Path.Segment s : path) {
-			result += ", " + this.convertRelationshipToString(s.relationship());
-			result += ", " + this.convertNodeToString(s.end());
-		}
-
-		return result + "]";
 	}
 
 	@Override public boolean getBoolean(String columnLabel) throws SQLException {
 		checkClosed();
 		Value value = this.fetchValueFromLabel(columnLabel);
-		return value.isNull() ? false : value.asBoolean();
+		return !value.isNull() && value.asBoolean();
 	}
 
 	private Value fetchPropertyValue(String key, String property) throws SQLException {
@@ -436,7 +366,7 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 	@Override public boolean getBoolean(int columnIndex) throws SQLException {
 		checkClosed();
 		Value value = this.fetchValueFromIndex(columnIndex);
-		return value.isNull() ? false : value.asBoolean();
+		return !value.isNull() && value.asBoolean();
 	}
 
 	@Override public int getInt(int columnIndex) throws SQLException {
@@ -484,13 +414,17 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 	@Override public Neo4jArray getArray(int columnIndex) throws SQLException {
 		checkClosed();
 		List<Object> list = this.fetchValueFromIndex(columnIndex).asList();
-		return new ListArray(list, Neo4jArray.getObjectType(list.get(0)));
+		Object obj = (list.isEmpty())?new Object():list.get(0);
+
+		return new ListArray(list, Neo4jArray.getObjectType(obj));
 	}
 
 	@SuppressWarnings("rawtypes") @Override public Neo4jArray getArray(String columnLabel) throws SQLException {
 		checkClosed();
 		List list = this.fetchValueFromLabel(columnLabel).asList();
-		return new ListArray(list, Neo4jArray.getObjectType(list.get(0)));
+		Object obj = (list.isEmpty())?new Object():list.get(0);
+
+		return new ListArray(list, Neo4jArray.getObjectType(obj));
 	}
 
 	@Override public double getDouble(String columnLabel) throws SQLException {
@@ -503,51 +437,190 @@ public class BoltNeo4jResultSet extends Neo4jResultSet {
 		return metaData;
 	}
 
-	private Object generateObject(Object obj) {
-		if (obj instanceof Node) {
-			Node node = (Node) obj;
-			Map<String, Object> map = new HashMap<>();
-			map.put("_id", node.id());
-			map.put("_labels", node.labels());
-			map.putAll(node.asMap());
-			return map;
-		}
-		if (obj instanceof Relationship) {
-			Relationship rel = (Relationship) obj;
-			Map<String, Object> map = new HashMap<>(16);
-			map.put("_id", rel.id());
-			map.put("_type", rel.type());
-			map.put("_startId", rel.startNodeId());
-			map.put("_endId", rel.endNodeId());
-			map.putAll(rel.asMap());
-			return map;
-		}
-		if (obj instanceof Path) {
-			Path path = (Path) obj;
-			List<Object> list = new ArrayList<>(path.length());
-			list.add(this.generateObject(path.start()));
-			for (Path.Segment segment : path) {
-				list.add(this.generateObject(segment.relationship()));
-				list.add(this.generateObject(segment.end()));
-			}
-			return list;
-		}
-		return obj;
-	}
+
+
 
 	@Override public Object getObject(int columnIndex) throws SQLException {
 		checkClosed();
 		Object obj = this.fetchValueFromIndex(columnIndex).asObject();
-		return this.generateObject(obj);
+		return convertObject(obj);
 	}
 
 	@Override public Object getObject(String columnLabel) throws SQLException {
 		checkClosed();
 		Object obj = this.fetchValueFromLabel(columnLabel).asObject();
-		return this.generateObject(obj);
+		return convertObject(obj);
 	}
 
-	@Override public Statement getStatement() throws SQLException {
+	@Override public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
+		try {
+			return getObject(type, ()-> this.fetchValueFromLabel(columnLabel), () -> this.getObject(columnLabel));
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
+	}
+
+	/**
+	 * Check if the argument is a internal data used by neo4j
+	 * @param type
+	 * @return
+	 */
+	private boolean isNeo4jDatatype(Class type){
+		return ObjectValueAdapter.class.isAssignableFrom(type);
+	}
+
+	private <T> T getObject(Class<T> type, Callable fetch, Callable getObject) throws Exception {
+		checkClosed();
+		if (type == null) {
+			throw new SQLException("Type to cast cannot be null");
+		}
+
+		if (isNeo4jDatatype(type)){
+			return (T) fetch.call();
+		}
+
+		if (type == ZonedDateTime.class){
+			DateTimeValue value = (DateTimeValue) fetch.call();
+			return (T) value.asZonedDateTime();
+		}
+		else if (type == LocalDateTime.class){
+			LocalDateTimeValue value = (LocalDateTimeValue) fetch.call();
+			return (T) value.asLocalDateTime();
+		}
+		else if (type == IsoDuration.class){
+			DurationValue value = (DurationValue) fetch.call();
+			return (T) value.asIsoDuration();
+		}
+		else if (type == LocalDate.class){
+			DateValue value = (DateValue) fetch.call();
+			return (T) value.asLocalDate();
+		}
+		else if (type == LocalTime.class){
+			LocalTimeValue value = (LocalTimeValue) fetch.call();
+			return (T) value.asLocalTime();
+		}
+		else if (type == OffsetTime.class){
+			TimeValue value = (TimeValue) fetch.call();
+			return (T) value.asOffsetTime();
+		}
+		else if (type == Point.class){
+			PointValue value = (PointValue) fetch.call();
+			return (T) value.asPoint();
+		}
+		else {
+			Object obj = getObject.call();
+			T ret;
+			try {
+				ret = ObjectConverter.convert(obj, type);
+			} catch (Exception e) {
+				throw new SQLException(e);
+			}
+			return ret;
+		}
+	}
+
+	@Override public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
+		try {
+			return getObject(type, ()-> this.fetchValueFromIndex(columnIndex), () -> this.getObject(columnIndex));
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
+	}
+
+	@Override public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
+		checkClosed();
+		Object obj = this.getObject(columnLabel);
+		String fromClass = obj.getClass().getCanonicalName();
+		Class<?> toClass = map.get(fromClass);
+		if(toClass == null) {
+			throw new SQLException(String.format("Mapping for class: %s not found", fromClass));
+		}
+		Object ret;
+		try {
+			ret = ObjectConverter.convert(obj, toClass);
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
+		return ret;
+	}
+
+	@Override public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
+		checkClosed();
+		Object obj = this.getObject(columnIndex);
+		Object ret;
+		try {
+			ret = ObjectConverter.convert(obj, map.get(obj.getClass().toString()));
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
+		return ret;
+	}
+
+	@Override public Statement getStatement() {
 		return statement;
+	}
+
+	@Override public Timestamp getTimestamp(int columnIndex) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromIndex(columnIndex);
+		return valueToTimestamp(value);
+	}
+
+	@Override public Timestamp getTimestamp(String columnLabel) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromLabel(columnLabel);
+		return valueToTimestamp(value);
+	}
+
+	@Override public Date getDate(int columnIndex) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromIndex(columnIndex);
+		return valueToDate(value);
+	}
+
+	@Override public Date getDate(String columnLabel) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromLabel(columnLabel);
+		return valueToDate(value);
+	}
+
+	@Override public Time getTime(int columnIndex) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromIndex(columnIndex);
+		return valueToTime(value);
+	}
+
+	@Override public Time getTime(String columnLabel) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromLabel(columnLabel);
+		return valueToTime(value);
+	}
+
+	@Override
+	public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromIndex(columnIndex);
+		return valueToTimestamp(value, cal.getTimeZone().toZoneId());
+	}
+
+	@Override
+	public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromLabel(columnLabel);
+		return valueToTimestamp(value, cal.getTimeZone().toZoneId());
+	}
+
+	@Override
+	public Time getTime(int columnIndex, Calendar cal) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromIndex(columnIndex);
+		return valueToTime(value,cal);
+	}
+
+	@Override
+	public Time getTime(String columnLabel, Calendar cal) throws SQLException {
+		checkClosed();
+		Value value = this.fetchValueFromLabel(columnLabel);
+		return valueToTime(value,cal);
 	}
 }

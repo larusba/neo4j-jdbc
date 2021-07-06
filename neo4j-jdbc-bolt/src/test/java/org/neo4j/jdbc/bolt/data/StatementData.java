@@ -30,17 +30,20 @@ public class StatementData {
 	public static String STATEMENT_MATCH_NODES_MORE                     = "MATCH (n:User)-[]->(s:Session) RETURN n, s;";
 	public static String STATEMENT_MATCH_MISC                           = "MATCH (n:User) RETURN n, n.name;";
 	public static String STATEMENT_MATCH_RELATIONS                      = "MATCH ()-[r:CONNECTED_IN]-() RETURN r;";
-	public static String STATEMENT_MATCH_NODES_RELATIONS                = "MATCH (n:User)-[r:CONNECTED_IN]->(s:Session) RETURN n, r, s";
+	public static String STATEMENT_MATCH_NODES_RELATIONS                = "MATCH (n:User)-[r:CONNECTED_IN]->(s:Session) RETURN n, r, s ORDER BY ID(n) ASC, ID(r) ASC, ID(s) ASC";
 	public static String STATEMENT_CREATE                               = "CREATE (n:User {name:\"test\"});";
 	public static String STATEMENT_CREATE_REV                           = "MATCH (n:User {name:\"test\"}) DELETE n;";
 	public static String STATEMENT_CREATE_TWO_PROPERTIES                = "CREATE (n:User {name:\"test\", surname:\"testAgain\"});";
 	public static String STATEMENT_CREATE_TWO_PROPERTIES_REV            = "MATCH (n:USer {name:\"test\", surname:\"testAgain\"}) DETACH DELETE n;";
 	public static String STATEMENT_MATCH_ALL_STRING_PARAMETRIC          = "MATCH (n) WHERE n.name = ? RETURN n.surname;";
-	public static String STATEMENT_MATCH_ALL_STRING_PARAMETRIC_NAMED    = "MATCH (n) WHERE n.name = {1} RETURN n.surname;";
+	public static String STATEMENT_MATCH_ALL_STRING_PARAMETRIC_NAMED    = "MATCH (n) WHERE n.name = $1 RETURN n.surname;";
 	public static String STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS      = "MATCH (n:User) CREATE (n)-[:CONNECTED_IN {date:1459248821051}]->(:Session {status:true});";
 	public static String STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS_REV  = "MATCH (s:Session) DETACH DELETE s;";
 	public static String STATEMENT_CREATE_TWO_PROPERTIES_PARAMETRIC     = "CREATE (n:User {name:?, surname:?});";
 	public static String STATEMENT_CREATE_TWO_PROPERTIES_PARAMETRIC_REV = "MATCH (n:User {name:?, surname:?}) DETACH DELETE n;";
 	public static String STATEMENT_CLEAR_DB                             = "MATCH (n) DETACH DELETE n;";
 	public static String STATEMENT_COUNT_NODES                          = "MATCH (n) RETURN count(n) AS total;";
+	public static String STATEMENT_UPDATE_NODES_PARAM                   = "MATCH (n:User {name: ?}) SET n.visited = true;";
+	public static String STATEMENT_UPDATE_NODES                         = "MATCH (n:User {name: 'test'}) SET n.visited = true;";
+
 }

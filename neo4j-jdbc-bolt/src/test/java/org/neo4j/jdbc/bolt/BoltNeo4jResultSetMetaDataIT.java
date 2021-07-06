@@ -19,25 +19,27 @@
  */
 package org.neo4j.jdbc.bolt;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.sql.Array;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.Types;
-import java.util.Map;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.*;
 import org.neo4j.driver.internal.types.InternalTypeSystem;
+import org.neo4j.harness.junit.rule.Neo4jRule;
 import org.neo4j.jdbc.bolt.data.StatementData;
+import org.neo4j.jdbc.bolt.utils.JdbcConnectionTestUtils;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static java.util.Arrays.asList;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.neo4j.driver.internal.types.InternalTypeSystem.TYPE_SYSTEM;
 
 /**
  * @author AgileLARUS
@@ -45,17 +47,21 @@ import org.neo4j.jdbc.bolt.data.StatementData;
  */
 public class BoltNeo4jResultSetMetaDataIT {
 
-	private final static String FLATTEN_URI = "flatten=1";
+	static Connection connectionFlatten;
 
-	@ClassRule public static Neo4jBoltRule neo4j = new Neo4jBoltRule();
+	@ClassRule public static Neo4jRule neo4j = new Neo4jRule();
 
 	@Before public void setUp() {
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_TWO_PROPERTIES);
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_TWO_PROPERTIES);
+		connectionFlatten = JdbcConnectionTestUtils.verifyConnection(connectionFlatten, neo4j,",flatten=1");
 	}
 
 	@After public void tearDown() {
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_TWO_PROPERTIES_REV);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CLEAR_DB);
+	}
+
+	@AfterClass
+	public static void tearDownConnection(){
+		JdbcConnectionTestUtils.closeConnection(connectionFlatten);
 	}
 
 	/*------------------------------*/
@@ -63,60 +69,51 @@ public class BoltNeo4jResultSetMetaDataIT {
 	/*------------------------------*/
 
 	@Test public void shouldAddVirtualColumnsOnNodeWithMultipleNodes() throws SQLException {
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_TWO_PROPERTIES);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
 
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl," + FLATTEN_URI);
-
-		try (Statement stmt = con.createStatement()) {
+		try (Statement stmt = connectionFlatten.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_NODES_MORE);
 
 			assertEquals(stmt, rs.getStatement());
-			ResultSetMetaData rsm = rs.getMetaData();
+			ResultSetMetaData metadata = rs.getMetaData();
 
-			int i = 1;
+			List<String> labels = IntStream.range(1, metadata.getColumnCount() + 1)
+					.boxed()
+					.map(propagatingException(metadata::getColumnLabel))
+					.collect(Collectors.toList());
 
-			assertEquals(9, rsm.getColumnCount());
-			assertEquals("n", rsm.getColumnLabel(i++));
-			assertEquals("n.id", rsm.getColumnLabel(i++));
-			assertEquals("n.labels", rsm.getColumnLabel(i++));
-			assertEquals("n.surname", rsm.getColumnLabel(i++));
-			assertEquals("n.name", rsm.getColumnLabel(i++));
-			assertEquals("s", rsm.getColumnLabel(i++));
-			assertEquals("s.id", rsm.getColumnLabel(i++));
-			assertEquals("s.labels", rsm.getColumnLabel(i++));
-			assertEquals("s.status", rsm.getColumnLabel(i++));
+			assertThat(labels, equalTo(asList(
+					"n", "n.id", "n.labels", "n.name", "n.surname",
+					"s", "s.id", "s.labels", "s.status"
+			)));
+
 		}
-		con.close();
 
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS_REV);
 	}
 
 	@Test public void shouldAddVirtualColumnsOnNodeAndPreserveResultSet() throws SQLException {
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl," + FLATTEN_URI);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_TWO_PROPERTIES);
 
-		try (Statement stmt = con.createStatement()) {
+		try (Statement stmt = connectionFlatten.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_NODES);
-			ResultSetMetaData rsm = rs.getMetaData();
+			ResultSetMetaData metadata = rs.getMetaData();
 
-			int i = 1;
+			List<String> labels = IntStream.range(1, metadata.getColumnCount() + 1)
+					.boxed()
+					.map(propagatingException(metadata::getColumnLabel))
+					.collect(Collectors.toList());
 
-			assertEquals(5, rsm.getColumnCount());
-			assertEquals("n", rsm.getColumnLabel(i++));
-			assertEquals("n.id", rsm.getColumnLabel(i++));
-			assertEquals("n.labels", rsm.getColumnLabel(i++));
-			assertEquals("n.surname", rsm.getColumnLabel(i++));
-			assertEquals("n.name", rsm.getColumnLabel(i++));
+			assertThat(labels, equalTo(asList("n", "n.id", "n.labels", "n.name", "n.surname")));
 
 			assertTrue(rs.next());
 			assertEquals("test", ((Map) rs.getObject(1)).get("name"));
 		}
-		con.close();
 	}
 
 	@Test public void shouldNotAddVirtualColumnsOnNodeIfNotOnlyNodes() throws SQLException {
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl," + FLATTEN_URI);
 
-		try (Statement stmt = con.createStatement()) {
+		try (Statement stmt = connectionFlatten.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_MISC);
 			ResultSetMetaData rsm = rs.getMetaData();
 
@@ -124,15 +121,13 @@ public class BoltNeo4jResultSetMetaDataIT {
 			assertEquals("n", rsm.getColumnLabel(1));
 			assertEquals("n.name", rsm.getColumnLabel(2));
 		}
-		con.close();
 	}
 
 	@Test public void shouldAddVirtualColumnsOnRelationsWithMultipleRelations() throws SQLException {
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_TWO_PROPERTIES);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
 
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl," + FLATTEN_URI);
-
-		try (Statement stmt = con.createStatement()) {
+		try (Statement stmt = connectionFlatten.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_RELATIONS);
 			ResultSetMetaData rsm = rs.getMetaData();
 
@@ -144,46 +139,35 @@ public class BoltNeo4jResultSetMetaDataIT {
 			assertEquals("r.type", rsm.getColumnLabel(i++));
 			assertEquals("r.date", rsm.getColumnLabel(i++));
 		}
-		con.close();
 
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS_REV);
 	}
 
 	@Test public void shouldAddVirtualColumnsOnRelationsAndNodesWithMultiple() throws SQLException {
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_TWO_PROPERTIES);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
 
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl," + FLATTEN_URI);
-
-		try (Statement stmt = con.createStatement()) {
+		try (Statement stmt = connectionFlatten.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_NODES_RELATIONS);
-			ResultSetMetaData rsm = rs.getMetaData();
+			ResultSetMetaData metadata = rs.getMetaData();
 
-			int i = 1;
+			List<String> labels = IntStream.range(1, metadata.getColumnCount() + 1)
+					.boxed()
+					.map(propagatingException(metadata::getColumnLabel))
+					.collect(Collectors.toList());
 
-			assertEquals(13, rsm.getColumnCount());
-			assertEquals("n", rsm.getColumnLabel(i++));
-			assertEquals("n.id", rsm.getColumnLabel(i++));
-			assertEquals("n.labels", rsm.getColumnLabel(i++));
-			assertEquals("n.surname", rsm.getColumnLabel(i++));
-			assertEquals("n.name", rsm.getColumnLabel(i++));
-			assertEquals("r", rsm.getColumnLabel(i++));
-			assertEquals("r.id", rsm.getColumnLabel(i++));
-			assertEquals("r.type", rsm.getColumnLabel(i++));
-			assertEquals("r.date", rsm.getColumnLabel(i++));
-			assertEquals("s", rsm.getColumnLabel(i++));
-			assertEquals("s.id", rsm.getColumnLabel(i++));
-			assertEquals("s.labels", rsm.getColumnLabel(i++));
-			assertEquals("s.status", rsm.getColumnLabel(i++));
+			assertThat(labels, equalTo(asList(
+					"n", "n.id", "n.labels", "n.name", "n.surname",
+					"r", "r.id", "r.type", "r.date",
+					"s", "s.id", "s.labels", "s.status"
+			)));
 		}
-		con.close();
 
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS_REV);
 	}
 
 	@Test public void getColumnTypeShouldSucceed() throws SQLException {
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE);
 
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl");
+		Connection con = JdbcConnectionTestUtils.getConnection(neo4j);
 
 		try (Statement stmt = con.createStatement()) {
 			ResultSet rs = stmt.executeQuery("MATCH (n) return 'a',1,1.0,[1,2,3],{a:1},null,n,n.name");
@@ -191,35 +175,35 @@ public class BoltNeo4jResultSetMetaDataIT {
 				ResultSetMetaData rsm = rs.getMetaData();
 
 				assertEquals(Types.VARCHAR, rsm.getColumnType(1));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.STRING().name(), rsm.getColumnTypeName(1));
+				assertEquals(TYPE_SYSTEM.STRING().name(), rsm.getColumnTypeName(1));
 				assertEquals(String.class.getName(), rsm.getColumnClassName(1));
 
 				assertEquals(Types.INTEGER, rsm.getColumnType(2));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.INTEGER().name(), rsm.getColumnTypeName(2));
+				assertEquals(TYPE_SYSTEM.INTEGER().name(), rsm.getColumnTypeName(2));
 				assertEquals(Long.class.getName(), rsm.getColumnClassName(2));
 
 				assertEquals(Types.FLOAT, rsm.getColumnType(3));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.FLOAT().name(), rsm.getColumnTypeName(3));
+				assertEquals(TYPE_SYSTEM.FLOAT().name(), rsm.getColumnTypeName(3));
 				assertEquals(Double.class.getName(), rsm.getColumnClassName(3));
 
 				assertEquals(Types.ARRAY, rsm.getColumnType(4));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.LIST().name(), rsm.getColumnTypeName(4));
+				assertEquals(TYPE_SYSTEM.LIST().name(), rsm.getColumnTypeName(4));
 				assertEquals(Array.class.getName(), rsm.getColumnClassName(4));
 
 				assertEquals(Types.JAVA_OBJECT, rsm.getColumnType(5));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.MAP().name(), rsm.getColumnTypeName(5));
+				assertEquals(TYPE_SYSTEM.MAP().name(), rsm.getColumnTypeName(5));
 				assertEquals(Map.class.getName(), rsm.getColumnClassName(5));
 
 				assertEquals(Types.NULL, rsm.getColumnType(6));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.NULL().name(), rsm.getColumnTypeName(6));
+				assertEquals(TYPE_SYSTEM.NULL().name(), rsm.getColumnTypeName(6));
 				assertEquals(null, rsm.getColumnClassName(6));
 
 				assertEquals(Types.JAVA_OBJECT, rsm.getColumnType(7));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.NODE().name(), rsm.getColumnTypeName(7));
+				assertEquals(TYPE_SYSTEM.NODE().name(), rsm.getColumnTypeName(7));
 				assertEquals(Object.class.getName(), rsm.getColumnClassName(7));
 
 				assertEquals(Types.VARCHAR, rsm.getColumnType(8));
-				assertEquals(InternalTypeSystem.TYPE_SYSTEM.STRING().name(), rsm.getColumnTypeName(8));
+				assertEquals(TYPE_SYSTEM.STRING().name(), rsm.getColumnTypeName(8));
 				assertEquals(String.class.getName(), rsm.getColumnClassName(8));
 			}
 		}
@@ -228,88 +212,101 @@ public class BoltNeo4jResultSetMetaDataIT {
 	}
 
 	@Test public void getColumnTypeNameShouldBeCorrectAfterFlattening() throws SQLException {
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE);
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
 
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl," + FLATTEN_URI);
-
-		try (Statement stmt = con.createStatement()) {
+		try (Statement stmt = connectionFlatten.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_NODES_RELATIONS);
 			rs.next();
+			ResultSetMetaData metadata = rs.getMetaData();
 
-			ResultSetMetaData rsm = rs.getMetaData();
+			List<String> columnTypes = IntStream.range(1, metadata.getColumnCount() + 1)
+					.boxed()
+					.map(propagatingException(metadata::getColumnTypeName))
+					.collect(Collectors.toList());
 
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.NODE().name(), rsm.getColumnTypeName(1));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.INTEGER().name(), rsm.getColumnTypeName(2));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.LIST().name(), rsm.getColumnTypeName(3));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.STRING().name(), rsm.getColumnTypeName(4));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.STRING().name(), rsm.getColumnTypeName(5));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.RELATIONSHIP().name(), rsm.getColumnTypeName(6));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.INTEGER().name(), rsm.getColumnTypeName(7));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.STRING().name(), rsm.getColumnTypeName(8));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.INTEGER().name(), rsm.getColumnTypeName(9));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.NODE().name(), rsm.getColumnTypeName(10));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.INTEGER().name(), rsm.getColumnTypeName(11));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.LIST().name(), rsm.getColumnTypeName(12));
-			assertEquals(InternalTypeSystem.TYPE_SYSTEM.BOOLEAN().name(), rsm.getColumnTypeName(13));
+			assertThat(columnTypes, equalTo(Arrays.asList(
+					TYPE_SYSTEM.NODE().name(),
+					TYPE_SYSTEM.INTEGER().name(),
+					TYPE_SYSTEM.LIST().name(),
+					TYPE_SYSTEM.STRING().name(),
+					TYPE_SYSTEM.RELATIONSHIP().name(),
+					TYPE_SYSTEM.INTEGER().name(),
+					TYPE_SYSTEM.STRING().name(),
+					TYPE_SYSTEM.INTEGER().name(),
+					TYPE_SYSTEM.NODE().name(),
+					TYPE_SYSTEM.INTEGER().name(),
+					TYPE_SYSTEM.LIST().name(),
+					TYPE_SYSTEM.BOOLEAN().name()
+			)));
 		}
 
-		con.close();
-
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS_REV);
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_REV);
 	}
 
 	@Test public void getColumnClassNameShouldBeCorrectAfterFlattening() throws SQLException {
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
 
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE);
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS);
-
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl," + FLATTEN_URI);
-
-		try (Statement stmt = con.createStatement()) {
+		try (Statement stmt = connectionFlatten.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_NODES_RELATIONS);
 			rs.next();
 
-			ResultSetMetaData rsm = rs.getMetaData();
+			ResultSetMetaData metadata = rs.getMetaData();
+			List<String> classNames = IntStream.range(1, metadata.getColumnCount() + 1)
+					.boxed()
+					.map(propagatingException(metadata::getColumnClassName))
+					.collect(Collectors.toList());
 
-			assertEquals(Object.class.getName(), rsm.getColumnClassName(1));
-			assertEquals(Long.class.getName(), rsm.getColumnClassName(2));
-			assertEquals(Array.class.getName(), rsm.getColumnClassName(3));
-			assertEquals(String.class.getName(), rsm.getColumnClassName(4));
-			assertEquals(String.class.getName(), rsm.getColumnClassName(5));
-			assertEquals(Object.class.getName(), rsm.getColumnClassName(6));
-			assertEquals(Long.class.getName(), rsm.getColumnClassName(7));
-			assertEquals(String.class.getName(), rsm.getColumnClassName(8));
-			assertEquals(Long.class.getName(), rsm.getColumnClassName(9));
-			assertEquals(Object.class.getName(), rsm.getColumnClassName(10));
-			assertEquals(Long.class.getName(), rsm.getColumnClassName(11));
-			assertEquals(Array.class.getName(), rsm.getColumnClassName(12));
-			assertEquals(Boolean.class.getName(), rsm.getColumnClassName(13));
+			assertThat(classNames, equalTo(Arrays.asList(
+					Object.class.getName(),
+					Long.class.getName(),
+					Array.class.getName(),
+					String.class.getName(),
+					Object.class.getName(),
+					Long.class.getName(),
+					String.class.getName(),
+					Long.class.getName(),
+					Object.class.getName(),
+					Long.class.getName(),
+					Array.class.getName(),
+					Boolean.class.getName()
+			)));
 		}
 
-		con.close();
-
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_OTHER_TYPE_AND_RELATIONS_REV);
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_REV);
 	}
 
-	@Test public void flatteningShouldBeDisabledByDefault() throws SQLException {
+	@Test public void getColumnsTypeNameShouldWorkWithVariableNumberOfProperties() throws SQLException {
 
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE);
+		neo4j.defaultDatabaseService().executeTransactionally(StatementData.STATEMENT_CREATE);
 
-		Connection con = DriverManager.getConnection("jdbc:neo4j:" + neo4j.getBoltUrl() + "?nossl");
+		Connection con = JdbcConnectionTestUtils.getConnection(neo4j);
 
 		try (Statement stmt = con.createStatement()) {
 			ResultSet rs = stmt.executeQuery(StatementData.STATEMENT_MATCH_NODES);
-			rs.next();
 
-			ResultSetMetaData rsm = rs.getMetaData();
-			assertEquals(1, rsm.getColumnCount());
+			while(rs.next()) {
+				ResultSetMetaData rsm = rs.getMetaData();
+				assertEquals(1, rsm.getColumnCount());
+				assertEquals(2000, rsm.getColumnType(1));
+				assertEquals("NODE", rsm.getColumnTypeName(1));
+			}
 		}
 
 		con.close();
-
-		neo4j.getGraphDatabase().execute(StatementData.STATEMENT_CREATE_REV);
 	}
+
+	private static <T> Function<Integer, T> propagatingException(ThrowingFunction<Integer, T, SQLException> throwingFunc) {
+		return (i) -> {
+			try {
+				return throwingFunc.apply(i);
+			} catch (SQLException e) {
+				throw new RuntimeException(e);
+			}
+		};
+	}
+}
+
+@FunctionalInterface
+interface ThrowingFunction<T, R, E extends Exception> {
+	R apply(T t) throws E;
 }
