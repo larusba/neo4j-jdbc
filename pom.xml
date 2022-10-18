@@ -84,7 +84,7 @@
 		<neo4j.java.driver.version>1.4.5</neo4j.java.driver.version>
 		<neo4j.version>3.3.0</neo4j.version>
 		<httpclient.version>4.5.3</httpclient.version>
-		<jackson.version>2.9.2</jackson.version>
+		<jackson.version>2.13.4.1</jackson.version>
 
 		<!-- Plugin version -->
 		<maven.plugin.compiler>3.6.1</maven.plugin.compiler>
